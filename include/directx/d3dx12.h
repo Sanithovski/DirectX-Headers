@@ -4065,6 +4065,14 @@ RETTYPE OPTION(UINT NodeIndex=0) const \
     return FEATURE[NodeIndex].OPTION; \
 }
 
+// Macro to set up a getter function for feature data indexed by NodeIndex
+// Allows a custom name for the getter function
+#define FEATURE_SUPPORT_GET_NODE_INDEXED_NAME(RETTYPE,FEATURE,OPTION,NAME) \
+RETTYPE NAME(UINT NodeIndex=0) const \
+{\
+    return FEATURE[NodeIndex].OPTION; \
+}
+
 // Macro to initialize a member feature data struct corresponding to the specified feature
 // Will stop the initialization process and return an error code upon failure
 #define INITIALIZE_MEMBER_DATA_CHECKED(FEATURE, MEMBER) \
@@ -4101,6 +4109,18 @@ public:
         INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS1, m_dOptions1);
         INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS2, m_dOptions2);
         INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_SHADER_CACHE, m_dShaderCache);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS3, m_dOptions3);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_EXISTING_HEAPS, m_dExistingHeaps);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS4, m_dOptions4);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_CROSS_NODE, m_dCrossNode);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS5, m_dOptions5);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_DISPLAYABLE, m_dDisplayable);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS6, m_dOptions6);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS7, m_dOptions7);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS8, m_dOptions8);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS9, m_dOptions9);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS10, m_dOptions10);
+        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS11, m_dOptions11);
 
         // Initialize features that uses hints
         if (FAILED(m_hStatus = QueryHighestShaderModel())) {
@@ -4115,9 +4135,18 @@ public:
         const UINT uNodeCount = m_pDevice->GetNodeCount();
         m_dProtectedResourceSessionSupport.resize(uNodeCount);
         m_dArchitecture1.resize(uNodeCount);
+        m_dSerialization.resize(uNodeCount);
+        m_dProtectedResourceSessionTypeCount.resize(uNodeCount);
+        m_dProtectedResourceSessionTypes.resize(uNodeCount);
         for (UINT i = 0; i < uNodeCount; i++) {
             INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_SUPPORT, m_dProtectedResourceSessionSupport[i]);
             INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_ARCHITECTURE1, m_dArchitecture1[i]);
+            INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_SERIALIZATION, m_dSerialization[i]);
+            INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPE_COUNT, m_dProtectedResourceSessionTypeCount[i]);
+
+            // Special procedure to initialize local protected resource session types structs
+            // Must wait until session type count initialized
+            QueryProtectedResourceSessionTypes(i, m_dProtectedResourceSessionTypeCount[i].Count);
         }
 
         // Initialize Feature Levels data
@@ -4276,6 +4305,100 @@ public:
     // 19: Shader Cache
     FEATURE_SUPPORT_GET_NAME(D3D12_SHADER_CACHE_SUPPORT_FLAGS, m_dShaderCache, SupportFlags, ShaderCacheSupportFlags);
 
+    // 20: Command Queue Priority
+    BOOL CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE CommandListType, UINT Priority) 
+    {
+        m_dCommandQueuePriority.CommandListType = CommandListType;
+        m_dCommandQueuePriority.Priority = Priority;
+
+        // TODO: Report invalid arguments?
+        if (FAILED(m_pDevice->CheckFeatureSupport(D3D12_FEATURE_COMMAND_QUEUE_PRIORITY, &m_dCommandQueuePriority, sizeof(D3D12_FEATURE_DATA_COMMAND_QUEUE_PRIORITY)))) {
+            return false;
+        }
+
+        return m_dCommandQueuePriority.PriorityForTypeIsSupported;
+    }
+
+    // 21: D3D12 Options3
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions3, CopyQueueTimestampQueriesSupported);
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions3, CastingFullyTypedFormatSupported);
+    FEATURE_SUPPORT_GET(D3D12_COMMAND_LIST_SUPPORT_FLAGS, m_dOptions3, WriteBufferImmediateSupportFlags);
+    FEATURE_SUPPORT_GET(D3D12_VIEW_INSTANCING_TIER, m_dOptions3, ViewInstancingTier);
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions3, BarycentricsSupported);
+
+    // 22: Existing Heaps
+    FEATURE_SUPPORT_GET_NAME(BOOL, m_dExistingHeaps, Supported, ExistingHeapsSupported);
+
+    // 23: D3D12 Options4
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions4, MSAA64KBAlignedTextureSupported);
+    FEATURE_SUPPORT_GET(D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER, m_dOptions4, SharedResourceCompatibilityTier);
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions4, Native16BitShaderOpsSupported);
+
+    // 24: Serialization
+    FEATURE_SUPPORT_GET_NODE_INDEXED(D3D12_HEAP_SERIALIZATION_TIER, m_dSerialization, HeapSerializationTier);
+
+    // 25: Cross Node
+    // FEATURE_SUPPORT_GET_NAME(D3D12_CROSS_NODE_SHARING_TIER, m_dCrossNode, SharingTier, CrossNodeSharingTier); // Duplicate in D3D12Options
+    FEATURE_SUPPORT_GET_NAME(BOOL, m_dCrossNode, AtomicShaderInstructions, CrossNodeAtomicShaderInstructions);
+    
+    // 27: D3D12 Options5
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions5, SRVOnlyTiledResourceTier3);
+    FEATURE_SUPPORT_GET(D3D12_RENDER_PASS_TIER, m_dOptions5, RenderPassesTier);
+    FEATURE_SUPPORT_GET(D3D12_RAYTRACING_TIER, m_dOptions5, RaytracingTier);
+
+    // 28: Displayable
+    FEATURE_SUPPORT_GET(BOOL, m_dDisplayable, DisplayableTexture);
+    FEATURE_SUPPORT_GET_NAME(D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER, m_dDisplayable, SharedResourceCompatibilityTier, DisplayableSharedResourceCompatibilityTier);
+
+    // 30: D3D12 Options6
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions6, AdditionalShadingRatesSupported);
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions6, PerPrimitiveShadingRateSupportedWithViewportIndexing);
+    FEATURE_SUPPORT_GET(D3D12_VARIABLE_SHADING_RATE_TIER, m_dOptions6, VariableShadingRateTier);
+    FEATURE_SUPPORT_GET(UINT, m_dOptions6, ShadingRateImageTileSize);
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions6, BackgroundProcessingSupported);
+
+    // 31: Query Meta Command
+    // Keep the original call routine
+    HRESULT QueryMetaCommand(D3D12_FEATURE_DATA_QUERY_META_COMMAND& dQueryMetaCommand) {
+        return m_pDevice->CheckFeatureSupport(D3D12_FEATURE_QUERY_META_COMMAND, &dQueryMetaCommand, sizeof(D3D12_FEATURE_DATA_QUERY_META_COMMAND));
+    }
+
+    // 32: D3D12 Options7
+    FEATURE_SUPPORT_GET(D3D12_MESH_SHADER_TIER, m_dOptions7, MeshShaderTier);
+    FEATURE_SUPPORT_GET(D3D12_SAMPLER_FEEDBACK_TIER, m_dOptions7, SamplerFeedbackTier);
+
+    // 33: Protected Resource Session Type Count
+    FEATURE_SUPPORT_GET_NODE_INDEXED_NAME(UINT, m_dProtectedResourceSessionTypeCount, Count, ProtectedResourceSessionTypeCount);
+
+    // 34: Protected Resource Session Types
+    FEATURE_SUPPORT_GET_NODE_INDEXED_NAME(std::vector<GUID>, m_dProtectedResourceSessionTypes, TypeVec, ProtectedResourceSessionTypes);
+
+    // 36: Options8
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions8, UnalignedBlockTexturesSupported);
+
+    // 37: Options9
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions9, MeshShaderPipelineStatsSupported);
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions9, MeshShaderSupportsFullRangeRenderTargetArrayIndex);
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions9, AtomicInt64OnTypedResourceSupported);
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions9, AtomicInt64OnGroupSharedSupported);
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions9, DerivativesInMeshAndAmplificationShadersSupported);
+    FEATURE_SUPPORT_GET(D3D12_WAVE_MMA_TIER, m_dOptions9, WaveMMATier);
+
+    // 39: Options10
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions10, VariableRateShadingSumCombinerSupported);
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions10, MeshShaderPerPrimitiveShadingRateSupported);
+
+    // 40: Options11
+    FEATURE_SUPPORT_GET(BOOL, m_dOptions11, AtomicInt64OnDescriptorHeapResourceSupported);
+
+private: // Private structs to simplify querying procedures
+    
+    // A helper struct that help store protected resource session types
+    struct ProtectedResourceSessionTypesLocal : D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_TYPES
+    {
+        std::vector<GUID> TypeVec;
+    };
+
 private: // Private helpers
     
     // Helper function to decide the highest shader model supported by the system
@@ -4354,6 +4477,18 @@ private: // Private helpers
         return result;
     }
 
+    // Helper function to initialize local protected resource session types structs
+    HRESULT QueryProtectedResourceSessionTypes(UINT NodeIndex, UINT Count)
+    {
+        auto& CurrentPRSTypes = m_dProtectedResourceSessionTypes[NodeIndex];
+        CurrentPRSTypes.NodeIndex = NodeIndex;
+        CurrentPRSTypes.Count = Count;
+        CurrentPRSTypes.TypeVec.resize(CurrentPRSTypes.Count);
+        CurrentPRSTypes.pTypes = CurrentPRSTypes.TypeVec.data();
+
+        return m_pDevice->CheckFeatureSupport(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPES, &m_dProtectedResourceSessionTypes[NodeIndex], sizeof(D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_TYPES));
+    }
+
 private: // Member data
     // Pointer to the underlying device
     ID3D12Device* m_pDevice;
@@ -4381,15 +4516,15 @@ private: // Member data
     D3D12_FEATURE_DATA_D3D12_OPTIONS3 m_dOptions3;
     D3D12_FEATURE_DATA_EXISTING_HEAPS m_dExistingHeaps;
     D3D12_FEATURE_DATA_D3D12_OPTIONS4 m_dOptions4;
-    D3D12_FEATURE_DATA_SERIALIZATION m_dSerialization;
+    std::vector<D3D12_FEATURE_DATA_SERIALIZATION> m_dSerialization; // Cat2 NodeIndex
     D3D12_FEATURE_DATA_CROSS_NODE m_dCrossNode;
     D3D12_FEATURE_DATA_D3D12_OPTIONS5 m_dOptions5;
     D3D12_FEATURE_DATA_DISPLAYABLE m_dDisplayable;
     D3D12_FEATURE_DATA_D3D12_OPTIONS6 m_dOptions6;
-    D3D12_FEATURE_DATA_QUERY_META_COMMAND m_dQueryMetaCommand; // Cat3
+    // D3D12_FEATURE_DATA_QUERY_META_COMMAND m_dQueryMetaCommand; // Cat3
     D3D12_FEATURE_DATA_D3D12_OPTIONS7 m_dOptions7;
-    D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_TYPE_COUNT m_dProtectedResourceSessionTypeCount; // Cat3
-    D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_TYPES m_dProtectedResourceSessionTypes; // Cat3
+    std::vector<D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_TYPE_COUNT> m_dProtectedResourceSessionTypeCount; // Cat2 NodeIndex
+    std::vector<ProtectedResourceSessionTypesLocal> m_dProtectedResourceSessionTypes; // Cat3
     D3D12_FEATURE_DATA_D3D12_OPTIONS8 m_dOptions8;
     D3D12_FEATURE_DATA_D3D12_OPTIONS9 m_dOptions9;
     D3D12_FEATURE_DATA_D3D12_OPTIONS10 m_dOptions10;
@@ -4399,6 +4534,7 @@ private: // Member data
 #undef FEATURE_SUPPORT_GET
 #undef FEATURE_SUPPORT_GET_NAME
 #undef FEATURE_SUPPORT_GET_NODE_INDEXED
+#undef FEATURE_SUPPORT_GET_NODE_INDEXED_NAME
 #undef INITIALIZE_MEMBER_DATA_CHECKED
 
 

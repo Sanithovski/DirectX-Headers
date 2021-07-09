@@ -93,6 +93,9 @@ int main()
 
     // 16: Architecture1
     BOOL IsolatedMMU = features->IsolatedMMU();
+    BOOL TileBasedRenderer = features->TileBasedRenderer();
+    BOOL UMA = features->UMA();
+    BOOL CacheCoherentUMA = features->CacheCoherentUMA();
 
     // 18: Options2
     BOOL DepthBoundsTestSupported = features->DepthBoundsTestSupported();

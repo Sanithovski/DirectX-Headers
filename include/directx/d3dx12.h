@@ -4163,6 +4163,77 @@ public:
             m_dShaderCache.SupportFlags = D3D12_SHADER_CACHE_SUPPORT_NONE;
         }
 
+        if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS3, m_dOptions3)) {
+            m_dOptions3.CopyQueueTimestampQueriesSupported = false;
+            m_dOptions3.CastingFullyTypedFormatSupported = false;
+            m_dOptions3.WriteBufferImmediateSupportFlags = D3D12_COMMAND_LIST_SUPPORT_FLAG_NONE;
+            m_dOptions3.ViewInstancingTier = D3D12_VIEW_INSTANCING_TIER_NOT_SUPPORTED;
+            m_dOptions3.BarycentricsSupported = false;
+        }
+
+        if (INITIALIZE_FAILED(D3D12_FEATURE_EXISTING_HEAPS, m_dExistingHeaps)) {
+            m_dExistingHeaps.Supported = false;
+        }
+
+        if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS4, m_dOptions4)) {
+            m_dOptions4.MSAA64KBAlignedTextureSupported = false;
+            m_dOptions4.Native16BitShaderOpsSupported = false;
+            m_dOptions4.SharedResourceCompatibilityTier = (D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER)0; // TODO: 0 is occupied. See if needs another value
+        }
+
+        if (INITIALIZE_FAILED(D3D12_FEATURE_CROSS_NODE, m_dCrossNode)) {
+            m_dCrossNode.SharingTier = D3D12_CROSS_NODE_SHARING_TIER_NOT_SUPPORTED;
+            m_dCrossNode.AtomicShaderInstructions = false;
+        }
+
+        if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS5, m_dOptions5)) {
+            m_dOptions5.SRVOnlyTiledResourceTier3 = false;
+            m_dOptions5.RenderPassesTier = (D3D12_RENDER_PASS_TIER)0; // TODO: 0 is occupied
+            m_dOptions5.RaytracingTier = D3D12_RAYTRACING_TIER_NOT_SUPPORTED;
+        }
+
+        if (INITIALIZE_FAILED(D3D12_FEATURE_DISPLAYABLE, m_dDisplayable)) {
+            m_dDisplayable.DisplayableTexture = false;
+            // TODO: Check if it's the same property as in Options4?
+            m_dDisplayable.SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0; // TODO: 0 is occupied
+        }
+
+        if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS6, m_dOptions6)) {
+            m_dOptions6.AdditionalShadingRatesSupported = false;
+            m_dOptions6.PerPrimitiveShadingRateSupportedWithViewportIndexing = false;
+            m_dOptions6.VariableShadingRateTier = D3D12_VARIABLE_SHADING_RATE_TIER_NOT_SUPPORTED;
+            m_dOptions6.ShadingRateImageTileSize = 0;
+            m_dOptions6.BackgroundProcessingSupported = false;
+        }
+
+        if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS7, m_dOptions7)) {
+            m_dOptions7.MeshShaderTier = D3D12_MESH_SHADER_TIER_NOT_SUPPORTED;
+            m_dOptions7.SamplerFeedbackTier = D3D12_SAMPLER_FEEDBACK_TIER_NOT_SUPPORTED;
+        }
+
+        if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS8, m_dOptions8)) {
+            m_dOptions8.UnalignedBlockTexturesSupported = false;
+        }
+
+        if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS9, m_dOptions9)) {
+            m_dOptions9.MeshShaderPipelineStatsSupported = false;
+            m_dOptions9.MeshShaderSupportsFullRangeRenderTargetArrayIndex = false;
+            m_dOptions9.AtomicInt64OnGroupSharedSupported = false;
+            m_dOptions9.AtomicInt64OnTypedResourceSupported = false;
+            m_dOptions9.DerivativesInMeshAndAmplificationShadersSupported = false;
+            m_dOptions9.WaveMMATier = D3D12_WAVE_MMA_TIER_NOT_SUPPORTED;
+        }
+
+        if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS10, m_dOptions10)) {
+            m_dOptions10.MeshShaderPerPrimitiveShadingRateSupported = false;
+            m_dOptions10.VariableRateShadingSumCombinerSupported = false;
+        }
+
+        if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS11, m_dOptions11)) {
+            m_dOptions11.AtomicInt64OnDescriptorHeapResourceSupported = false;
+        }
+
+
         // Initialize features that requires highest version check
         if (FAILED(m_hStatus = QueryHighestShaderModel())) {
             return m_hStatus;
@@ -4207,6 +4278,20 @@ public:
                 m_dArchitecture1[i].CacheCoherentUMA = dArchLocal.CacheCoherentUMA;
                 m_dArchitecture1[i].IsolatedMMU = false;
             }
+
+            m_dSerialization[i].NodeIndex = i;
+            if (INITIALIZE_FAILED(D3D12_FEATURE_SERIALIZATION, m_dSerialization[i])) {
+                m_dSerialization[i].HeapSerializationTier = (D3D12_HEAP_SERIALIZATION_TIER)0; // TODO: 0 is occupied
+            }
+
+            m_dProtectedResourceSessionTypeCount[i].NodeIndex = i;
+            if (INITIALIZE_FAILED(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPE_COUNT, m_dProtectedResourceSessionTypeCount[i])) {
+                m_dProtectedResourceSessionTypeCount[i].Count = 0;
+            }
+
+            // Special procedure to initialize local protected resource session types structs
+            // Must wait until session type count initialized
+            QueryProtectedResourceSessionTypes(i, m_dProtectedResourceSessionTypeCount[i].Count);
         }
 
         // Initialize Feature Levels data

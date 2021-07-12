@@ -4116,19 +4116,6 @@ public:
 
         
         // Initialize static feature support data structures
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS3, m_dOptions3);
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_EXISTING_HEAPS, m_dExistingHeaps);
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS4, m_dOptions4);
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_CROSS_NODE, m_dCrossNode);
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS5, m_dOptions5);
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_DISPLAYABLE, m_dDisplayable);
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS6, m_dOptions6);
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS7, m_dOptions7);
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS8, m_dOptions8);
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS9, m_dOptions9);
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS10, m_dOptions10);
-        INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_D3D12_OPTIONS11, m_dOptions11);
-        
         if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS, m_dOptions)) {
             m_dOptions.DoublePrecisionFloatShaderOps = false;
             m_dOptions.OutputMergerLogicOp = false;
@@ -4240,16 +4227,6 @@ public:
             m_dOptions11.AtomicInt64OnDescriptorHeapResourceSupported = false;
         }
 
-
-        // Initialize features that requires highest version check
-        if (FAILED(m_hStatus = QueryHighestShaderModel())) {
-            return m_hStatus;
-        }
-
-        if (FAILED(m_hStatus = QueryHighestRootSignatureVersion())) {
-            return m_hStatus;
-        }
-
         // Initialize per-node feature support data structures
         const UINT uNodeCount = m_pDevice->GetNodeCount();
         m_dProtectedResourceSessionSupport.resize(uNodeCount);
@@ -4258,13 +4235,6 @@ public:
         m_dProtectedResourceSessionTypeCount.resize(uNodeCount);
         m_dProtectedResourceSessionTypes.resize(uNodeCount);
         for (UINT i = 0; i < uNodeCount; i++) {
-            INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_SERIALIZATION, m_dSerialization[i]);
-            INITIALIZE_MEMBER_DATA_CHECKED(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPE_COUNT, m_dProtectedResourceSessionTypeCount[i]);
-
-            // Special procedure to initialize local protected resource session types structs
-            // Must wait until session type count initialized
-            QueryProtectedResourceSessionTypes(i, m_dProtectedResourceSessionTypeCount[i].Count);
-            
             m_dProtectedResourceSessionSupport[i].NodeIndex = i;
             if (INITIALIZE_FAILED(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_SUPPORT, m_dProtectedResourceSessionSupport[i])) {
                 m_dProtectedResourceSessionSupport[i].Support = D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE;

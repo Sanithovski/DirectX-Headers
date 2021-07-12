@@ -3293,7 +3293,6 @@ inline bool operator==( const D3D12_RENDER_PASS_DEPTH_STENCIL_DESC &a, const D3D
 #define D3DX12_COM_PTR_GET(x) x.p
 #define D3DX12_COM_PTR_ADDRESSOF(x) &x.p
 #endif
-#include <variant>
 
 //------------------------------------------------------------------------------------------------
 class CD3DX12_STATE_OBJECT_DESC
@@ -4039,7 +4038,16 @@ private:
 };
 
 //------------------------------------------------------------------------------------------------
-// Peter: Implementation for the new CheckFeatureSupport API
+// Implementation for the new CheckFeatureSupport API
+
+#ifdef FEATURE_SUPPORT_USE_VARIANT
+#if (__cplusplus >= 201703L || _MSVC_LANG >= 201703L)
+#define FEATURE_SUPPORT_VARIANT_OPT_IN
+#include <variant>
+#else
+static_assert(false, "std::variant is only supported on compilers with C++17 enabled")
+#endif
+#endif
 
 // Macro to set up a getter function for each entry in feature support data
 // The getter function will have the same name as the feature option name
@@ -4089,7 +4097,7 @@ class CD3DX12FeatureSupport
 public:
     CD3DX12FeatureSupport()
     : m_pDevice(nullptr)
-    , m_hStatus(E_NOTIMPL)
+    , m_hStatus(E_INVALIDARG)
     {}
 
     CD3DX12FeatureSupport(ID3D12Device* pDevice)
@@ -4100,7 +4108,7 @@ public:
     HRESULT Init(ID3D12Device* pDevice)
     {
         if (!pDevice) {
-            m_hStatus = E_NOTIMPL;
+            m_hStatus = E_INVALIDARG;
             return m_hStatus;
         }
 
@@ -4142,7 +4150,6 @@ public:
         if (INITIALIZE_FAILED(D3D12_FEATURE_GPU_VIRTUAL_ADDRESS_SUPPORT, m_dGPUVASupport)) {
             m_dGPUVASupport.MaxGPUVirtualAddressBitsPerProcess = 0;
             m_dGPUVASupport.MaxGPUVirtualAddressBitsPerResource = 0;
-
         }
 
         if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS1, m_dOptions1)) {
@@ -4294,6 +4301,15 @@ public:
             QueryProtectedResourceSessionTypes(i, m_dProtectedResourceSessionTypeCount[i].Count);
         }
 
+        // Initialize features that requires highest version check
+        if (FAILED(m_hStatus = QueryHighestShaderModel())) {
+            return m_hStatus;
+        }
+
+        if (FAILED(m_hStatus = QueryHighestRootSignatureVersion())) {
+            return m_hStatus;
+        }
+
         // Initialize Feature Levels data
         if (FAILED(m_hStatus = QueryHighestFeatureLevel())) {
             return m_hStatus;
@@ -4307,6 +4323,7 @@ public:
         return m_hStatus;
     }
 
+#ifdef FEATURE_SUPPORT_VARIANT_OPT_IN
     static std::variant<CD3DX12FeatureSupport, HRESULT> Create(ID3D12Device* pDevice)
     {
         CD3DX12FeatureSupport features;
@@ -4317,6 +4334,14 @@ public:
 
         return features;
     }
+#else
+    static CD3DX12FeatureSupport Create(ID3D12Device* pDevice)
+    {
+        CD3DX12FeatureSupport features;
+        features.Init(pDevice);
+        return features;
+    }
+#endif
 
     // 0: D3D12_OPTIONS
     FEATURE_SUPPORT_GET(BOOL, m_dOptions, DoublePrecisionFloatShaderOps);
@@ -4370,7 +4395,11 @@ public:
 
         HRESULT result = m_pDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &dMultisampleQualityLevels, sizeof(D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS));
         
-        NumQualityLevels = dMultisampleQualityLevels.NumQualityLevels;
+        if (SUCCEEDED(result)) {
+            NumQualityLevels = dMultisampleQualityLevels.NumQualityLevels;
+        } else {
+            NumQualityLevels = 0;
+        }
         return result;
     }
 
@@ -4392,7 +4421,7 @@ public:
     FEATURE_SUPPORT_GET(UINT, m_dGPUVASupport, MaxGPUVirtualAddressBitsPerProcess);
 
     // 7: Shader Model
-    D3D_SHADER_MODEL HighestShaderModel()
+    D3D_SHADER_MODEL HighestShaderModel() const
     {
         return m_dShaderModel.HighestShaderModel;
     }
@@ -4535,29 +4564,36 @@ private: // Private helpers
         // Check support in descending order
         HRESULT result;
 
-        // SHADER_MODEL_6_X
-        for (int i = D3D_SHADER_MODEL_6_7; i >= D3D_SHADER_MODEL_6_0; i--) {
-            m_dShaderModel.HighestShaderModel = static_cast<D3D_SHADER_MODEL>(i);
+        D3D_SHADER_MODEL allModelVersions[] = {
+            D3D_SHADER_MODEL_6_7,
+            D3D_SHADER_MODEL_6_6,
+            D3D_SHADER_MODEL_6_5,
+            D3D_SHADER_MODEL_6_4,
+            D3D_SHADER_MODEL_6_3,
+            D3D_SHADER_MODEL_6_2,
+            D3D_SHADER_MODEL_6_1,
+            D3D_SHADER_MODEL_6_0,
+            D3D_SHADER_MODEL_5_1
+        };
+
+        UINT numModelVersions = sizeof(allModelVersions) / sizeof(D3D_SHADER_MODEL);
+
+        for (UINT i = 0; i < numModelVersions; i++) {
+            m_dShaderModel.HighestShaderModel = allModelVersions[i];
             result = m_pDevice->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &m_dShaderModel, sizeof(D3D12_FEATURE_DATA_SHADER_MODEL));
-            if (SUCCEEDED(result) || result != E_INVALIDARG) {
-                // Indicates that the version is recognizable by the runtime. 
-                // The highest version supported has been written in the member data structure
+            if (result != E_INVALIDARG) {
+                // Indicates that the version is recognizable by the runtime and stored in the struct
                 // Also terminate on unexpected error code
+                if (FAILED(result)) {
+                    m_dShaderModel.HighestShaderModel = (D3D_SHADER_MODEL)0;
+                }
                 return result;
             }
         }
 
-        // SHADER_MODEL_5_1
-        // This is the last model included in the d3d12.h header.
-        m_dShaderModel.HighestShaderModel = D3D_SHADER_MODEL_5_1;
-        result = m_pDevice->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &m_dShaderModel, sizeof(D3D12_FEATURE_DATA_SHADER_MODEL));
-        if (result == E_INVALIDARG) {
-            // Shader model may not be supported
-            m_dShaderModel.HighestShaderModel = (D3D_SHADER_MODEL)0;
-            result = S_OK; // Continue initialization
-        }
-
-        return result;
+        // Shader model may not be supported. Continue the rest initializations
+        m_dShaderModel.HighestShaderModel = (D3D_SHADER_MODEL)0;
+        return S_OK;
     }
 
     // Helper function to decide the highest root signature supported
@@ -4566,11 +4602,24 @@ private: // Private helpers
     {
         HRESULT result;
 
+        D3D_ROOT_SIGNATURE_VERSION allRootSignatureVersions[] = {
+            D3D_ROOT_SIGNATURE_VERSION_1_1,
+            D3D_ROOT_SIGNATURE_VERSION_1_0,
+            D3D_ROOT_SIGNATURE_VERSION_1,
+        };
+
+        UINT numRootSignatureVersions = sizeof(allRootSignatureVersions) / sizeof(D3D_ROOT_SIGNATURE_VERSION);
+
+
         // ROOT_SIGNATURE_VERSION_1_X
-        for (int i = D3D_ROOT_SIGNATURE_VERSION_1_1; i >= D3D_ROOT_SIGNATURE_VERSION_1; i--) {
-            m_dRootSignature.HighestVersion = static_cast<D3D_ROOT_SIGNATURE_VERSION>(i);
+        for (UINT i = 0; i < numRootSignatureVersions; i++) {
+            m_dRootSignature.HighestVersion = allRootSignatureVersions[i];
             result = m_pDevice->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &m_dRootSignature, sizeof(D3D12_FEATURE_DATA_ROOT_SIGNATURE));
-            if (SUCCEEDED(result) || result != E_INVALIDARG) {
+            if (result != E_INVALIDARG) {
+                if (FAILED(result)) {
+                    m_dRootSignature.HighestVersion = (D3D_ROOT_SIGNATURE_VERSION)0;
+                }
+                // If succeeded, the highest version is already written into the member struct
                 return result;
             }
         }
@@ -4608,9 +4657,12 @@ private: // Private helpers
         result = m_pDevice->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &dFeatureLevel, sizeof(D3D12_FEATURE_DATA_FEATURE_LEVELS));
         if (SUCCEEDED(result)) {
             m_eMaxFeatureLevel = dFeatureLevel.MaxSupportedFeatureLevel;
-        } else if (result == DXGI_ERROR_UNSUPPORTED) {
+        } else {
             m_eMaxFeatureLevel = (D3D_FEATURE_LEVEL)0;
-            result = S_OK;
+
+            if (result == DXGI_ERROR_UNSUPPORTED) { // Indicates that none are supported
+                result = S_OK;
+            }
         }
         return result;
     }
@@ -4636,21 +4688,16 @@ private: // Member data
 
     // Feature support data structs
     D3D12_FEATURE_DATA_D3D12_OPTIONS m_dOptions;
-    // std::vector<D3D12_FEATURE_DATA_ARCHITECTURE> m_dArchitecture; // Cat2 NodeIndex, should be deprecated
-    // D3D12_FEATURE_DATA_FEATURE_LEVELS m_dFeatureLevels; // Cat3
     D3D_FEATURE_LEVEL m_eMaxFeatureLevel;
-    // D3D12_FEATURE_DATA_FORMAT_SUPPORT m_dFeatureSupport; // Cat3
-    // D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS m_dMultisampleQualityLevels; // Cat3
-    // D3D12_FEATURE_DATA_FORMAT_INFO m_dFormatInfo; // Cat3
     D3D12_FEATURE_DATA_GPU_VIRTUAL_ADDRESS_SUPPORT m_dGPUVASupport;
-    D3D12_FEATURE_DATA_SHADER_MODEL m_dShaderModel; // Cat2 Hint
+    D3D12_FEATURE_DATA_SHADER_MODEL m_dShaderModel;
     D3D12_FEATURE_DATA_D3D12_OPTIONS1 m_dOptions1;
-    std::vector<D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_SUPPORT> m_dProtectedResourceSessionSupport; // Cat2 NodeIndex
-    D3D12_FEATURE_DATA_ROOT_SIGNATURE m_dRootSignature; // Cat2 Hint
+    std::vector<D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_SUPPORT> m_dProtectedResourceSessionSupport;
+    D3D12_FEATURE_DATA_ROOT_SIGNATURE m_dRootSignature;
     std::vector<D3D12_FEATURE_DATA_ARCHITECTURE1> m_dArchitecture1;
     D3D12_FEATURE_DATA_D3D12_OPTIONS2 m_dOptions2;
     D3D12_FEATURE_DATA_SHADER_CACHE m_dShaderCache;
-    D3D12_FEATURE_DATA_COMMAND_QUEUE_PRIORITY m_dCommandQueuePriority; // Cat3
+    D3D12_FEATURE_DATA_COMMAND_QUEUE_PRIORITY m_dCommandQueuePriority;
     D3D12_FEATURE_DATA_D3D12_OPTIONS3 m_dOptions3;
     D3D12_FEATURE_DATA_EXISTING_HEAPS m_dExistingHeaps;
     D3D12_FEATURE_DATA_D3D12_OPTIONS4 m_dOptions4;
@@ -4675,6 +4722,9 @@ private: // Member data
 #undef FEATURE_SUPPORT_GET_NODE_INDEXED_NAME
 #undef INITIALIZE_MEMBER_DATA_CHECKED
 
+#ifdef FEATURE_SUPPORT_VARIANT_OPT_IN
+#undef FEATURE_SUPPORT_VARIANT_OPT_IN
+#endif
 
 #undef D3DX12_COM_PTR
 #undef D3DX12_COM_PTR_GET

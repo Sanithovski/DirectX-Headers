@@ -4114,7 +4114,6 @@ public:
 
         m_pDevice = pDevice;
 
-        
         // Initialize static feature support data structures
         if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS, m_dOptions)) {
             m_dOptions.DoublePrecisionFloatShaderOps = false;
@@ -4577,11 +4576,8 @@ private: // Private helpers
             D3D_ROOT_SIGNATURE_VERSION_1_0,
             D3D_ROOT_SIGNATURE_VERSION_1,
         };
-
         UINT numRootSignatureVersions = sizeof(allRootSignatureVersions) / sizeof(D3D_ROOT_SIGNATURE_VERSION);
 
-
-        // ROOT_SIGNATURE_VERSION_1_X
         for (UINT i = 0; i < numRootSignatureVersions; i++) {
             m_dRootSignature.HighestVersion = allRootSignatureVersions[i];
             result = m_pDevice->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &m_dRootSignature, sizeof(D3D12_FEATURE_DATA_ROOT_SIGNATURE));
@@ -4676,7 +4672,6 @@ private: // Member data
     D3D12_FEATURE_DATA_D3D12_OPTIONS5 m_dOptions5;
     D3D12_FEATURE_DATA_DISPLAYABLE m_dDisplayable;
     D3D12_FEATURE_DATA_D3D12_OPTIONS6 m_dOptions6;
-    // D3D12_FEATURE_DATA_QUERY_META_COMMAND m_dQueryMetaCommand; // Cat3
     D3D12_FEATURE_DATA_D3D12_OPTIONS7 m_dOptions7;
     std::vector<D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_TYPE_COUNT> m_dProtectedResourceSessionTypeCount; // Cat2 NodeIndex
     std::vector<ProtectedResourceSessionTypesLocal> m_dProtectedResourceSessionTypes; // Cat3

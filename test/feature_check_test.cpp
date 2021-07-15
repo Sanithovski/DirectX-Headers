@@ -15,23 +15,9 @@
 
 int main()
 {
-    IDXCoreAdapter *adapter = nullptr;
     ID3D12Device *device = nullptr;
 
-    {
-        IDXCoreAdapterFactory *factory = nullptr;
-        if (FAILED(DXCoreCreateAdapterFactory(&factory)))
-            return -1;
-
-        IDXCoreAdapterList *list = nullptr;
-        if (FAILED(factory->CreateAdapterList(1, &DXCORE_ADAPTER_ATTRIBUTE_D3D12_CORE_COMPUTE, &list)))
-            return -1;
-        
-        if (FAILED(list->GetAdapter(0, &adapter)))
-            return -1;
-    }
-
-    if (FAILED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)))) {
+    if (FAILED(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)))) {
         return -1;
     }
 
@@ -46,6 +32,7 @@ int main()
      if (!features) {
          return -1;
      }
+    
     // CD3DX12FeatureSupport* features = new CD3DX12FeatureSupport(device);
     if (FAILED(features->GetStatus())) {
         return -1;
@@ -159,7 +146,6 @@ int main()
     BOOL BackgroundProcessingSupported = features->BackgroundProcessingSupported();
 
     // 31: Query Metacommand
-    // TODO: Don't know how to test
 
     // 32: Options7
     D3D12_MESH_SHADER_TIER MeshShaderTier = features->MeshShaderTier();

@@ -2,6 +2,8 @@
 // Licensed under the MIT License.
 #ifndef DIRECTX_HEADERS_MOCK_DEVICE_HPP
 #define DIRECTX_HEADERS_MOCK_DEVICE_HPP
+#include <unordered_map>
+
 #include <directx/d3d12.h>
 #include <directx/dxcore.h>
 #include <directx/d3dx12.h>
@@ -9,10 +11,34 @@
 
 class MockDevice : public ID3D12Device
 {
-public:
+public: // Constructors and custom functions
+    MockDevice(UINT NodeCount = 1)
+    : m_NodeCount(NodeCount)
+    , m_TileBasedRenderer(m_NodeCount, false)
+    , m_UMA(m_NodeCount, false)
+    , m_CacheCoherentUMA(m_NodeCount, false)
+    , m_IsolatedMMU(m_NodeCount, false)
+    , m_ProtectedResourceSessionSupport(m_NodeCount, D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE)
+    , m_HeapSerializationTier(m_NodeCount, D3D12_HEAP_SERIALIZATION_TIER_0)
+    {
+
+    }
+
+    void SetNodeCount(UINT NewCount) 
+    {
+        m_NodeCount = NewCount;
+        m_TileBasedRenderer.resize(NewCount);
+        m_UMA.resize(NewCount);
+        m_CacheCoherentUMA.resize(NewCount);
+        m_IsolatedMMU.resize(NewCount);
+        m_ProtectedResourceSessionSupport.resize(NewCount);
+        m_HeapSerializationTier.resize(NewCount);
+    }
+
+public: // ID3D12Device
     UINT STDMETHODCALLTYPE GetNodeCount() override 
     {
-        return m_uNodeCount;
+        return m_NodeCount;
     }
 
     HRESULT STDMETHODCALLTYPE CreateCommandQueue(
@@ -330,6 +356,57 @@ public:
         return mockLuid;
     }
 
+public: // ID3D12Object
+    virtual HRESULT STDMETHODCALLTYPE GetPrivateData( 
+        _In_  REFGUID guid,
+        _Inout_  UINT *pDataSize,
+        _Out_writes_bytes_opt_( *pDataSize )  void *pData) override
+    {
+        return S_OK;
+    }
+    
+    virtual HRESULT STDMETHODCALLTYPE SetPrivateData( 
+        _In_  REFGUID guid,
+        _In_  UINT DataSize,
+        _In_reads_bytes_opt_( DataSize )  const void *pData) override
+    {
+        return S_OK;
+    }
+    
+    virtual HRESULT STDMETHODCALLTYPE SetPrivateDataInterface( 
+        _In_  REFGUID guid,
+        _In_opt_  const IUnknown *pData) override 
+    {
+        return S_OK;
+    }
+    
+    virtual HRESULT STDMETHODCALLTYPE SetName( 
+        _In_z_  LPCWSTR Name) override 
+    {
+        return S_OK;
+    }
+
+public: // IUnknown
+    virtual HRESULT STDMETHODCALLTYPE QueryInterface(
+        /* [in] */ REFIID riid,
+        /* [iid_is][out] */ _COM_Outptr_ void __RPC_FAR *__RPC_FAR *ppvObject) override
+    {
+        *ppvObject = this;
+        return S_OK;
+    }
+
+    virtual ULONG STDMETHODCALLTYPE AddRef() override 
+    {
+        // Casual implementation. No actual actions
+        return 0;
+    }
+
+    virtual ULONG STDMETHODCALLTYPE Release() override 
+    {
+        return 0;
+    }
+
+
     // Major function we need to work with
     virtual HRESULT STDMETHODCALLTYPE CheckFeatureSupport( 
         D3D12_FEATURE Feature,
@@ -346,55 +423,68 @@ public:
                 {
                     return E_INVALIDARG;
                 }
-                pD3D12Options->DoublePrecisionFloatShaderOps       = DriverSupportsDoublePrecisionFloatShaderOps();
-                pD3D12Options->OutputMergerLogicOp                 = LogicOpSupported();
-                pD3D12Options->MinPrecisionSupport                 = ((MinPrecision() & D3D11_DDI_SHADER_MIN_PRECISION_10_BIT) ? D3D12_SHADER_MIN_PRECISION_SUPPORT_10_BIT : D3D12_SHADER_MIN_PRECISION_SUPPORT_NONE) |
-                                                                    ((MinPrecision() & D3D11_DDI_SHADER_MIN_PRECISION_16_BIT) ? D3D12_SHADER_MIN_PRECISION_SUPPORT_16_BIT : D3D12_SHADER_MIN_PRECISION_SUPPORT_NONE);
-                pD3D12Options->TiledResourcesTier                  = TiledResourcesTier();
-                pD3D12Options->ResourceBindingTier                 = ResourceBindingTier();
-                pD3D12Options->PSSpecifiedStencilRefSupported      = PSSpecifiedStencilRefSupported();
-                pD3D12Options->TypedUAVLoadAdditionalFormats       = TypedUAVLoadAdditionalFormats();
-                pD3D12Options->ROVsSupported                       = ROVsSupported();
-                pD3D12Options->ConservativeRasterizationTier       = ConservativeRasterizationTier();
-                pD3D12Options->MaxGPUVirtualAddressBitsPerResource = MaxGPUVirtualAddressBitsPerResource();
-                pD3D12Options->StandardSwizzle64KBSupported        = m_ValidationInfo.m_bSupportsStandardSwizzle ? TRUE : FALSE;
+                pD3D12Options->DoublePrecisionFloatShaderOps       = m_DoublePrecisionFloatShaderOps;
+                pD3D12Options->OutputMergerLogicOp                 = m_OutputMergerLogicOp;
+                pD3D12Options->MinPrecisionSupport                 = m_ShaderMinPrecisionSupport10Bit | m_ShaderMinPrecisionSupport16Bit;
+                pD3D12Options->TiledResourcesTier                  = m_TiledResourcesTier;
+                pD3D12Options->ResourceBindingTier                 = m_ResourceBindingTier;
+                pD3D12Options->PSSpecifiedStencilRefSupported      = (m_FeatureLevel >= D3D_FEATURE_LEVEL_11_1) && m_PSSpecifiedStencilRefSupported;
+                pD3D12Options->TypedUAVLoadAdditionalFormats       = (m_FeatureLevel >= D3D_FEATURE_LEVEL_11_0) && m_TypedUAVLoadAdditionalFormats;
+                pD3D12Options->ROVsSupported                       = (m_FeatureLevel >= D3D_FEATURE_LEVEL_11_0) && m_ROVsSupported;
+                pD3D12Options->ConservativeRasterizationTier       = (m_FeatureLevel >= D3D_FEATURE_LEVEL_11_1) ? m_ConservativeRasterizationTier : D3D12_CONSERVATIVE_RASTERIZATION_TIER_NOT_SUPPORTED;
+                pD3D12Options->MaxGPUVirtualAddressBitsPerResource = m_MaxGPUVirtualAddressBitsPerResource;
+                pD3D12Options->StandardSwizzle64KBSupported        = m_StandardSwizzle64KBSupported;
     #ifdef DX_ASTC_PROTOTYPE_ENABLED
                 pD3D12Options->ASTCProfile                         = ASTCProfile();
     #endif
-                pD3D12Options->CrossNodeSharingTier                = CrossNodeSharingTier();
-                pD3D12Options->CrossAdapterRowMajorTextureSupported = m_ValidationInfo.m_bSupportsRowMajorTexture ? TRUE : FALSE;
-                pD3D12Options->VPAndRTArrayIndexFromAnyShaderFeedingRasterizerSupportedWithoutGSEmulation = VPAndRTArrayIndexFromAnyShaderFeedingRasterizerSupportedWithoutGSEmulation();
-                pD3D12Options->ResourceHeapTier                    = ResourceHeapTier();
+                pD3D12Options->CrossNodeSharingTier                = m_CrossNodeSharingTier;
+                pD3D12Options->CrossAdapterRowMajorTextureSupported = m_CrossAdapterRowMajorTextureSupported;
+                pD3D12Options->VPAndRTArrayIndexFromAnyShaderFeedingRasterizerSupportedWithoutGSEmulation = m_VPAndRTArrayIndexFromAnyShaderFeedingRasterizerSupportedWithoutGSEmulation;
+                pD3D12Options->ResourceHeapTier                    = m_ResourceHeapTier;
             } return S_OK;
-
+        
         case D3D12_FEATURE_D3D12_OPTIONS1:
         {
+            if (!m_Options1Available) 
+            {
+                return E_INVALIDARG;
+            }
             D3D12_FEATURE_DATA_D3D12_OPTIONS1* pD3D12Options1 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS1*>(pFeatureSupportData);
             if (FeatureSupportDataSize != sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS1))
             {
                 return E_INVALIDARG;
             }
-            pD3D12Options1->WaveOps = WaveOpsSupported();
-            pD3D12Options1->WaveLaneCountMin = WaveLaneCountMin();
-            pD3D12Options1->WaveLaneCountMax = WaveLaneCountMax();
-            pD3D12Options1->TotalLaneCount = TotalLaneCount();
-            pD3D12Options1->ExpandedComputeResourceStates = TRUE; // RS1 version check
-            pD3D12Options1->Int64ShaderOps = Int64ShaderOpsSupported();
+            pD3D12Options1->WaveOps = m_WaveOpsSupported;
+            pD3D12Options1->WaveLaneCountMin = m_WaveLaneCountMin;
+            pD3D12Options1->WaveLaneCountMax = m_WaveLaneCountMax;
+            pD3D12Options1->TotalLaneCount = m_TotalLaneCount;
+            pD3D12Options1->ExpandedComputeResourceStates = m_ExpandedComputeResourceStates;
+            pD3D12Options1->Int64ShaderOps = m_Int64ShaderOpsSupported;
         } return S_OK;
-
+        
+        
         case D3D12_FEATURE_D3D12_OPTIONS2:
         {
+            if (!m_Options2Available) 
+            {
+                return E_INVALIDARG;
+            }
+
             D3D12_FEATURE_DATA_D3D12_OPTIONS2* pD3D12Options2 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS2*>(pFeatureSupportData);
             if (FeatureSupportDataSize != sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS2))
             {
                 return E_INVALIDARG;
             }
-            pD3D12Options2->DepthBoundsTestSupported = DepthBoundsTestSupport();
-            pD3D12Options2->ProgrammableSamplePositionsTier = ProgrammableSamplePositionsTier();
+            pD3D12Options2->DepthBoundsTestSupported = m_DepthBoundsTestSupport;
+            pD3D12Options2->ProgrammableSamplePositionsTier = m_ProgrammableSamplePositionsTier;
         } return S_OK;
 
         case D3D12_FEATURE_ROOT_SIGNATURE:
         {
+            if (!m_RootSignatureAvailable)
+            {
+                return E_INVALIDARG;
+            }
             D3D12_FEATURE_DATA_ROOT_SIGNATURE* pRootSig = static_cast<D3D12_FEATURE_DATA_ROOT_SIGNATURE*>(pFeatureSupportData);
             if (FeatureSupportDataSize != sizeof(D3D12_FEATURE_DATA_ROOT_SIGNATURE))
             {
@@ -408,10 +498,10 @@ public:
             default:
                 return E_INVALIDARG;
             }
-            pRootSig->HighestVersion = min(pRootSig->HighestVersion,D3D_ROOT_SIGNATURE_VERSION_1_1); 
-                                        // Even if old driver, runtime can still convert from 1_1 to 1_0 without behavior change
-                                        // (only loses optimizations from new flags, which old driver's can't do anyway)
+            pRootSig->HighestVersion = min(pRootSig->HighestVersion, m_RootSignatureHighestVersion); 
         } return S_OK;
+        
+
         case D3D12_FEATURE_ARCHITECTURE:
             {
                 D3D12_FEATURE_DATA_ARCHITECTURE* pFData =
@@ -421,21 +511,44 @@ public:
                     return E_INVALIDARG;
                 }
 
-                D3D12_FEATURE_DATA_ARCHITECTURE1 CurFData;
-                CurFData.NodeIndex = pFData->NodeIndex;
-                
-                HRESULT hr;
-                if (FAILED( hr = CheckFeatureSupport( D3D12_FEATURE_ARCHITECTURE1, &CurFData, sizeof( CurFData ) ) ))
+                // Testing only
+                // If Architecture1 is available, use data from architecture1
+                if (m_Architecture1Available) 
                 {
-                    return hr;
-                }
+                    D3D12_FEATURE_DATA_ARCHITECTURE1 CurFData;
+                    CurFData.NodeIndex = pFData->NodeIndex;
+                    
+                    HRESULT hr;
+                    if (FAILED( hr = CheckFeatureSupport( D3D12_FEATURE_ARCHITECTURE1, &CurFData, sizeof( CurFData ) ) ))
+                    {
+                        return hr;
+                    }
 
-                pFData->TileBasedRenderer = CurFData.TileBasedRenderer;
-                pFData->UMA = CurFData.UMA;
-                pFData->CacheCoherentUMA = CurFData.CacheCoherentUMA;
+                    pFData->TileBasedRenderer = CurFData.TileBasedRenderer;
+                    pFData->UMA = CurFData.UMA;
+                    pFData->CacheCoherentUMA = CurFData.CacheCoherentUMA;
+                } 
+                else // Otherwise, load the data directly
+                {
+                    // The original procedure will generate and return an E_INVALIDARG error if the NodeIndex is out of scope
+                    // Mocking the behavior here by returning the rror
+                    if (!(pFData->NodeIndex < m_NodeCount)) 
+                    {
+                        return E_INVALIDARG;
+                    }
+                    pFData->TileBasedRenderer = m_TileBasedRenderer[pFData->NodeIndex];
+                    pFData->UMA = m_UMA[pFData->NodeIndex];
+                    pFData->CacheCoherentUMA = m_CacheCoherentUMA[pFData->NodeIndex];
+                    // Note that Architecture doesn't have the IsolatedMMU field.
+                }
             } return S_OK;
         case D3D12_FEATURE_ARCHITECTURE1:
             {
+                // Mocking the case where ARCHITECTURE1 is not supported
+                if (!m_Architecture1Available || !m_ArchitectureSucceed) {
+                    return E_INVALIDARG;
+                }
+
                 D3D12_FEATURE_DATA_ARCHITECTURE1* pFData =
                     static_cast< D3D12_FEATURE_DATA_ARCHITECTURE1* >( pFeatureSupportData );
                 if (FeatureSupportDataSize != sizeof( *pFData ))
@@ -443,21 +556,19 @@ public:
                     return E_INVALIDARG;
                 }
 
-                try
+                // The original procedure will generate and return an E_INVALIDARG error if the NodeIndex is out of scope
+                // Mocking the behavior here by returning the rror
+                if (!(pFData->NodeIndex < m_NodeCount)) 
                 {
-                    const UINT APINodeIndex = ConvertNodeIndexForCaps(pFData->NodeIndex); // throw( _com_error )
-
-                    pFData->TileBasedRenderer = m_ArchitectureInfo.TileBasedDeferredRenderer;
-
-                    const D3D12INT_MEMORY_ARCHITECTURE& MemArch = MemoryArchitecture(APINodeIndex);
-                    pFData->UMA = MemArch.UMA;
-                    pFData->CacheCoherentUMA = MemArch.CacheCoherentUMA;
-                    pFData->IsolatedMMU = MemArch.IsolatedMMU;
+                    return E_INVALIDARG;
                 }
-                catch( _com_error& hrEx )
-                {
-                    return hrEx.Error();
-                }
+
+                UINT localIndex = pFData->NodeIndex;
+                pFData->TileBasedRenderer = m_TileBasedRenderer[localIndex];
+                pFData->UMA = m_UMA[localIndex];
+                pFData->CacheCoherentUMA = m_CacheCoherentUMA[localIndex];
+                pFData->IsolatedMMU = m_IsolatedMMU[localIndex];
+
             } return S_OK;
 
         case D3D12_FEATURE_FEATURE_LEVELS:
@@ -477,7 +588,7 @@ public:
                 pFData->MaxSupportedFeatureLevel = D3D_FEATURE_LEVEL(0);
                 for (UINT i = 0; i < pFData->NumFeatureLevels; ++i)
                 {
-                    if (pFData->pFeatureLevelsRequested[i] <= FeatureLevel() &&
+                    if (pFData->pFeatureLevelsRequested[i] <= m_FeatureLevel &&
                         pFData->pFeatureLevelsRequested[i] > pFData->MaxSupportedFeatureLevel)
                     {
                         pFData->MaxSupportedFeatureLevel = pFData->pFeatureLevelsRequested[i];
@@ -495,8 +606,11 @@ public:
                 {
                     return E_INVALIDARG;
                 }
-
-                if (!CheckFormatSupportImpl(pFData->Format, pFData->Support1, pFData->Support2))
+                m_FormatReceived = pFData->Format;
+                pFData->Support1 = m_FormatSupport1;
+                pFData->Support2 = m_FormatSupport2;
+                // Based on the original implementation, if there's no support for the format, return an E_FAIL
+                if (m_FormatSupport1 == D3D12_FORMAT_SUPPORT1_NONE && m_FormatSupport2 == D3D12_FORMAT_SUPPORT2_NONE) 
                 {
                     return E_FAIL;
                 }
@@ -511,11 +625,20 @@ public:
                     return E_INVALIDARG;
                 }
 
-                if (!CheckMultisampleQualityLevelsImpl(pFData->Format, pFData->SampleCount,
-                                                    pFData->Flags, &pFData->NumQualityLevels))
+                m_FormatReceived = pFData->Format;
+                m_SampleCountReceived = pFData->SampleCount;
+                m_MultisampleQualityLevelFlagsReceived = pFData->Flags;
+
+                // The original check implementation may return E_FAIL
+                // Valid results include non-negative values including 0, smaller than D3D11_MAX_MULTISAMPLE_SAMPLE_COUNT
+                if (!m_MultisampleQualityLevelsSucceed) 
                 {
+                    // NumQualityLevels will be set to 0 should the check fails
+                    pFData->NumQualityLevels = 0;
                     return E_FAIL;
                 }
+                
+                pFData->NumQualityLevels = m_NumQualityLevels;
             } return S_OK;
         case D3D12_FEATURE_FORMAT_INFO:
             {
@@ -526,12 +649,14 @@ public:
                     return E_INVALIDARG;
                 }
 
-                if (!CD3D11FormatHelper::APIFormatExists(pFData->Format, FeatureLevel(), m_ValidationInfo.m_ExtendedFormatSupport))
+                m_FormatReceived = pFData->Format;
+                // If the format is not supported, an E_INVALIDARG will be returned
+                if (!m_DXGIFormatSupported) 
                 {
                     return E_INVALIDARG;
                 }
 
-                pFData->PlaneCount = CD3D11FormatHelper::GetPlaneCount(pFData->Format);
+                pFData->PlaneCount = m_PlaneCount;
 
             } return S_OK;
         case D3D12_FEATURE_GPU_VIRTUAL_ADDRESS_SUPPORT:
@@ -542,7 +667,9 @@ public:
                 {
                     return E_INVALIDARG;
                 }
-                *pFData = m_ValidationInfo.m_GPUVACaps;
+                pFData->MaxGPUVirtualAddressBitsPerProcess = m_MaxGPUVirtualAddressBitsPerProcess;
+                pFData->MaxGPUVirtualAddressBitsPerResource = m_MaxGPUVirtualAddressBitsPerResource;
+
             } return S_OK;
     #ifdef DX_HARDWARE_JPEG_PROTOTYPE_ENABLED
         case D3D12_FEATURE_JPEG_OPTIONS:
@@ -580,8 +707,12 @@ public:
                 default:
                     return E_INVALIDARG;
                 }
-                pSM->HighestShaderModel = min(pSM->HighestShaderModel,HighestSupportedShaderModel());
+                pSM->HighestShaderModel = min(pSM->HighestShaderModel,m_HighestSupportedShaderModel);
             } return S_OK;
+        
+        // Not ready for testing yet
+        // TODO: Unknown feature enum?
+        /*
         case D3D12_FEATURE_SUPPORTED_PSO_FLAGS:
             {
                 D3D12_FEATURE_DATA_SUPPORTED_PSO_FLAGS* pFlags =
@@ -596,14 +727,21 @@ public:
                 }
                 pFlags->SupportedFlags &= GetValidPipelineStateFlags();
             } return S_OK;
+        */
         case D3D12_FEATURE_SHADER_CACHE:
             {
+                if (!m_ShaderCacheAvailable) 
+                {
+                    return E_INVALIDARG;
+                }
                 D3D12_FEATURE_DATA_SHADER_CACHE* pFlags =
                     static_cast<D3D12_FEATURE_DATA_SHADER_CACHE*>(pFeatureSupportData);
                 if (FeatureSupportDataSize != sizeof(*pFlags))
                 {
                     return E_INVALIDARG;
                 }
+                // Simplify the implementation by arbitarily assign a return value
+                /*
                 pFlags->SupportFlags = D3D12_SHADER_CACHE_SUPPORT_SINGLE_PSO;
                 if (IsD3D12DDIVersionOrLater(e_DDI_12_1_0010))
                 {
@@ -629,9 +767,15 @@ public:
                 {
                     pFlags->SupportFlags |= D3D12_SHADER_CACHE_SUPPORT_SHADER_SESSION_DELETE;
                 }
+                */
+               pFlags->SupportFlags = m_ShaderCacheSupportFlags;
             } return S_OK;
         case D3D12_FEATURE_COMMAND_QUEUE_PRIORITY:
             {
+                if (!m_CommandQueuePriorityAvailable)
+                {
+                    return E_INVALIDARG;
+                }
                 D3D12_FEATURE_DATA_COMMAND_QUEUE_PRIORITY* pFlags =
                     static_cast<D3D12_FEATURE_DATA_COMMAND_QUEUE_PRIORITY*>(pFeatureSupportData);
                 if (FeatureSupportDataSize != sizeof(*pFlags))
@@ -639,7 +783,7 @@ public:
                     return E_INVALIDARG;
                 }
 
-                if (pFlags->CommandListType >= D3D12_COMMAND_LIST_TYPE_MAX_VALID)
+                if (pFlags->CommandListType >= D3D12_COMMAND_LIST_TYPE_VIDEO_ENCODE+1)
                 {
                     return E_INVALIDARG;
                 }
@@ -650,11 +794,7 @@ public:
                 }
                 else if (pFlags->Priority == D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME)
                 {
-                    bool bUmdBasedGlobalPriorityAvailable = false;
-
-                    CheckForGlobalRealtimeCommandQueueSupport(pFlags->CommandListType, bUmdBasedGlobalPriorityAvailable);
-
-                    pFlags->PriorityForTypeIsSupported = (m_bDxgkBasedGlobalPriorityAvailable || bUmdBasedGlobalPriorityAvailable);
+                    pFlags->PriorityForTypeIsSupported = m_GlobalRealtimeCommandQueueSupport; // Simplified
                 }
                 else
                 {
@@ -662,8 +802,13 @@ public:
                 }
 
             } return S_OK;
+        
         case D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_SUPPORT:
             {
+                if (!m_ProtectedResourceSessionAvailable) 
+                {
+                    return E_INVALIDARG;
+                }
                 D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_SUPPORT* pProtectedResourceSessionSupport =
                     static_cast<D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_SUPPORT*>(pFeatureSupportData);
                 if (   FeatureSupportDataSize != sizeof(*pProtectedResourceSessionSupport)
@@ -672,37 +817,49 @@ public:
                     return E_INVALIDARG;
                 }
 
-                pProtectedResourceSessionSupport->Support = EnsureContentProtectionSupported() ?
-                    m_PerNodeContentProtectionResourceCaps[pProtectedResourceSessionSupport->NodeIndex].Support
+                pProtectedResourceSessionSupport->Support = m_ContentProtectionSupported ?
+                    m_ProtectedResourceSessionSupport[pProtectedResourceSessionSupport->NodeIndex]
                     : D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE;
 
             } return S_OK;
+        
         case D3D12_FEATURE_D3D12_OPTIONS3:
         {
+            if (!m_Options3Available) 
+            {
+                return E_INVALIDARG;
+            }
             D3D12_FEATURE_DATA_D3D12_OPTIONS3* pD3D12Options3 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS3*>(pFeatureSupportData);
             if (FeatureSupportDataSize != sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS3))
             {
                 return E_INVALIDARG;
             }
-            pD3D12Options3->CopyQueueTimestampQueriesSupported = m_D3D12Options.CopyQueueTimestampQueriesSupported;
-            pD3D12Options3->CastingFullyTypedFormatSupported = CastingFullyTypedFormatsSupported();
-            pD3D12Options3->WriteBufferImmediateSupportFlags = GetCachedWriteBufferImmediateSupportFlags();
-            pD3D12Options3->ViewInstancingTier = ViewInstancingTier();
-            pD3D12Options3->BarycentricsSupported = BarycentricsSupported();
+            pD3D12Options3->CopyQueueTimestampQueriesSupported = m_CopyQueueTimestampQueriesSupported;
+            pD3D12Options3->CastingFullyTypedFormatSupported = m_CastingFullyTypedFormatsSupported;
+            pD3D12Options3->WriteBufferImmediateSupportFlags = m_GetCachedWriteBufferImmediateSupportFlags;
+            pD3D12Options3->ViewInstancingTier = m_ViewInstancingTier;
+            pD3D12Options3->BarycentricsSupported = m_BarycentricsSupported;
 
         } return S_OK;
         case D3D12_FEATURE_EXISTING_HEAPS:
             {
+                if (!m_ExistingHeapsAvailable)
+                {
+                    return E_INVALIDARG;
+                }
                 auto* pSupport = static_cast<D3D12_FEATURE_DATA_EXISTING_HEAPS*>(pFeatureSupportData);
                 if (FeatureSupportDataSize != sizeof(*pSupport))
                 {
                     return E_INVALIDARG;
                 }
-
-                *pSupport = m_ValidationInfo.m_ExistingHeapCaps;
+                pSupport->Supported = m_ExistingHeapCaps;
             } return S_OK;
         case D3D12_FEATURE_D3D12_OPTIONS4:
             {
+                if (!m_Options4Available)
+                {
+                    return E_INVALIDARG;
+                }
                 auto* pD3D12Options4 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS4*>(pFeatureSupportData);
                 if (FeatureSupportDataSize != sizeof(*pD3D12Options4))
                 {
@@ -710,72 +867,77 @@ public:
                 }
 
                 // Reserved Buffer Placement was cut, except for 64KB Aligned MSAA Textures
-                pD3D12Options4->MSAA64KBAlignedTextureSupported = m_D3D12Options.ReservedBufferPlacementSupported;
-                if (m_ValidationInfo.m_ExtendedFormatSupport >= CD3D11FormatHelper::e_Vibranium_FormatFeatures)
-                {
-                    pD3D12Options4->SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_2;
-                }
-                else if (m_ValidationInfo.m_ExtendedFormatSupport >= CD3D11FormatHelper::e_RS4_FormatFeatures)
-                {
-                    pD3D12Options4->SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_1;
-                }
-                else
-                {
-                    pD3D12Options4->SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0;
-                }
-                pD3D12Options4->Native16BitShaderOpsSupported = m_ShaderCaps.Native16BitOps;
+                pD3D12Options4->MSAA64KBAlignedTextureSupported = m_MSAA64KBAlignedTextureSupported;
+                pD3D12Options4->SharedResourceCompatibilityTier = m_SharedResourceCompatibilityTier; // Simplified
+                pD3D12Options4->Native16BitShaderOpsSupported = m_Native16BitShaderOpsSupported;
             } return S_OK;
         case D3D12_FEATURE_SERIALIZATION:
             {
+                if (!m_SerializationAvailable)
+                {
+                    return E_INVALIDARG;
+                }
                 auto* pSerialization = static_cast<D3D12_FEATURE_DATA_SERIALIZATION*>(pFeatureSupportData);
                 if (FeatureSupportDataSize != sizeof(*pSerialization))
                 {
                     return E_INVALIDARG;
                 }
 
-                try
+                const UINT NodeIndex = pSerialization->NodeIndex;
+                if (NodeIndex >= m_NodeCount) 
                 {
-                    const UINT APINodeIndex = ConvertNodeIndexForCaps(pSerialization->NodeIndex); // throw( _com_error )
-                    const D3D12INT_MEMORY_ARCHITECTURE& MemArch = MemoryArchitecture(APINodeIndex);
-                    pSerialization->HeapSerializationTier = MemArch.HeapSerializationTier;
+                    return E_INVALIDARG;
                 }
-                catch( _com_error& hrEx )
-                {
-                    return hrEx.Error();
-                }
+                pSerialization->HeapSerializationTier = m_HeapSerializationTier[NodeIndex];
             } return S_OK;
         case D3D12_FEATURE_CROSS_NODE:
             {
+                if (!m_CrossNodeAvailable)
+                {
+                    return E_INVALIDARG;
+                }
                 auto* pCrossNode = static_cast<D3D12_FEATURE_DATA_CROSS_NODE*>(pFeatureSupportData);
                 if (FeatureSupportDataSize != sizeof(*pCrossNode))
                 {
                     return E_INVALIDARG;
                 }
 
-                pCrossNode->SharingTier = CrossNodeSharingTier();
-                pCrossNode->AtomicShaderInstructions = (m_ValidationInfo.m_bCrossNodeAtomicShaderInstructions ? TRUE : FALSE);
+                pCrossNode->SharingTier = m_CrossNodeSharingTier;
+                pCrossNode->AtomicShaderInstructions = m_AtomicShaderInstructions;
             } return S_OK;
         case D3D12_FEATURE_D3D12_OPTIONS5:
             {
+                if (!m_Options5Available)
+                {
+                    return E_INVALIDARG;
+                }
                 auto* pD3D12Options5 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS5*>(pFeatureSupportData);
                 if (FeatureSupportDataSize != sizeof(*pD3D12Options5))
                 {
                     return E_INVALIDARG;
                 }
 
-                *pD3D12Options5 = m_ValidationInfo.m_Options5;
+                // *pD3D12Options5 = m_ValidationInfo.m_Options5;
+                pD3D12Options5->RaytracingTier = m_RaytracingTier;
+                pD3D12Options5->RenderPassesTier = m_RenderPassesTier;
+                pD3D12Options5->SRVOnlyTiledResourceTier3 = m_SRVOnlyTiledResourceTier3;
             } return S_OK;
         case D3D12_FEATURE_DISPLAYABLE:
             {
+                if (!m_DisplayableAvailable) 
+                {
+                    return E_INVALIDARG;
+                }
                 auto* pD3D12Displayable = static_cast<D3D12_FEATURE_DATA_DISPLAYABLE*>(pFeatureSupportData);
                 if (FeatureSupportDataSize != sizeof(*pD3D12Displayable)) // Feature_D3D1XDisplayable
                 {
                     return E_INVALIDARG;
                 }
 
-                pD3D12Displayable->DisplayableTexture = (m_ValidationInfo.m_bSupportsDisplayable ? TRUE : FALSE);
-                pD3D12Displayable->SharedResourceCompatibilityTier = m_ValidationInfo.m_Options4.SharedResourceCompatibilityTier;
+                pD3D12Displayable->DisplayableTexture = m_DisplayableTexture;
+                pD3D12Displayable->SharedResourceCompatibilityTier = m_SharedResourceCompatibilityTier;
             } return S_OK;
+        /*
         case D3D12_FEATURE_D3D12_OPTIONS6:
         {
             auto* pD3D12Options6 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS6*>(pFeatureSupportData);
@@ -985,18 +1147,25 @@ public:
 
             *pD3D12Options11 = m_ValidationInfo.m_Options11;
         } return S_OK;
+        */
+
         default:
             return E_INVALIDARG;
         }
     }
 
-public: // For simplicity, allow setting the internal state values for this mock class
+public: // For simplicity, allow tests to set the internal state values for this mock class
+    // General
+    UINT m_NodeCount; // Simulated number of computing nodes
+    // std::unordered_map<D3D12_FEATURE, bool> m_AvailableFeatures; // Turn features on or off
+
     // 0: Options
+    bool m_D3D12OptionsAvailable = true; 
     BOOL m_DoublePrecisionFloatShaderOps = false;
     BOOL m_OutputMergerLogicOp = false;
     D3D12_SHADER_MIN_PRECISION_SUPPORT m_ShaderMinPrecisionSupport10Bit = D3D12_SHADER_MIN_PRECISION_SUPPORT_NONE;
     D3D12_SHADER_MIN_PRECISION_SUPPORT m_ShaderMinPrecisionSupport16Bit = D3D12_SHADER_MIN_PRECISION_SUPPORT_NONE;
-    D3D12_TILED_RESOURCES_TIER m_TiledResourceTier = D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED;
+    D3D12_TILED_RESOURCES_TIER m_TiledResourcesTier = D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED;
     D3D12_RESOURCE_BINDING_TIER m_ResourceBindingTier = (D3D12_RESOURCE_BINDING_TIER)0;
     BOOL m_PSSpecifiedStencilRefSupported = false;
     BOOL m_TypedUAVLoadAdditionalFormats = false;
@@ -1008,8 +1177,110 @@ public: // For simplicity, allow setting the internal state values for this mock
     BOOL m_CrossAdapterRowMajorTextureSupported = false;
     BOOL m_VPAndRTArrayIndexFromAnyShaderFeedingRasterizerSupportedWithoutGSEmulation = false;
     D3D12_RESOURCE_HEAP_TIER m_ResourceHeapTier = (D3D12_RESOURCE_HEAP_TIER)0;
-private:
-    UINT m_uNodeCount;
+
+    // 1: Architecture & 16: Architecture1
+    bool m_ArchitectureSucceed = true;
+    bool m_Architecture1Available = false; // Mock the case where Architecture1 is not supported
+    std::vector<BOOL> m_TileBasedRenderer;
+    std::vector<BOOL> m_UMA;
+    std::vector<BOOL> m_CacheCoherentUMA;
+    std::vector<BOOL> m_IsolatedMMU;
+
+    // 2: Feature Levels
+    bool m_FeatureLevelsAvailable = true;
+    D3D_FEATURE_LEVEL m_FeatureLevel = D3D_FEATURE_LEVEL_12_0; // Set higher to allow other tests to pass correctly
+
+    // 3: Feature Format Support
+    // Forwarding call only. Make sure that the input parameters are correctly forwarded
+    bool m_FormatSupportAvailable = true;
+    DXGI_FORMAT m_FormatReceived;
+    D3D12_FORMAT_SUPPORT1 m_FormatSupport1 = D3D12_FORMAT_SUPPORT1_NONE;
+    D3D12_FORMAT_SUPPORT2 m_FormatSupport2 = D3D12_FORMAT_SUPPORT2_NONE;
+
+    // 4: Multisample Quality Levels
+    bool m_MultisampleQualityLevelsSucceed = true;
+    UINT m_SampleCountReceived;
+    D3D12_MULTISAMPLE_QUALITY_LEVEL_FLAGS m_MultisampleQualityLevelFlagsReceived;
+    UINT m_NumQualityLevels = 0;
+
+    // 5: Format Info
+    bool m_DXGIFormatSupported = true;
+    UINT m_PlaneCount = 0;
+
+    // 6: GPU Virtual Address Support
+    bool m_GPUVASupportAvailable = true;
+    UINT m_MaxGPUVirtualAddressBitsPerProcess = 0;
+
+    // 7: Shader Model
+    D3D_SHADER_MODEL m_HighestSupportedShaderModel = D3D_SHADER_MODEL_5_1;
+
+    // 8: Options1
+    bool m_Options1Available = true;
+    bool m_WaveOpsSupported = false;
+    UINT m_WaveLaneCountMin = 0;
+    UINT m_WaveLaneCountMax = 0;
+    UINT m_TotalLaneCount = 0;
+    bool m_ExpandedComputeResourceStates = false;
+    bool m_Int64ShaderOpsSupported = false;
+
+    // 10: Protected Resource Session Support
+    bool m_ProtectedResourceSessionAvailable = true;
+    bool m_ContentProtectionSupported = true;
+    std::vector<D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAGS> m_ProtectedResourceSessionSupport;
+
+    // 12: Root Signature
+    bool m_RootSignatureAvailable = true;
+    D3D_ROOT_SIGNATURE_VERSION m_RootSignatureHighestVersion = (D3D_ROOT_SIGNATURE_VERSION)0;
+
+    // 18: D3D12 Options2
+    bool m_Options2Available = true;
+    bool m_DepthBoundsTestSupport = false;
+    D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER m_ProgrammableSamplePositionsTier = D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER_NOT_SUPPORTED;
+
+    // 19: Shader Cache
+    bool m_ShaderCacheAvailable = true;
+    D3D12_SHADER_CACHE_SUPPORT_FLAGS m_ShaderCacheSupportFlags = D3D12_SHADER_CACHE_SUPPORT_NONE; // Lazy implementation
+
+    // 20: Command Queue Priority
+    bool m_CommandQueuePriorityAvailable = true;
+    bool m_GlobalRealtimeCommandQueueSupport = false;
+
+    // 21: Options3
+    bool m_Options3Available = true;
+    bool m_CopyQueueTimestampQueriesSupported = false;
+    bool m_CastingFullyTypedFormatsSupported = false;
+    D3D12_COMMAND_LIST_SUPPORT_FLAGS m_GetCachedWriteBufferImmediateSupportFlags = D3D12_COMMAND_LIST_SUPPORT_FLAG_NONE;
+    D3D12_VIEW_INSTANCING_TIER m_ViewInstancingTier = D3D12_VIEW_INSTANCING_TIER_NOT_SUPPORTED;
+    bool m_BarycentricsSupported = false;
+
+    // 22: Existing Heaps
+    bool m_ExistingHeapsAvailable = true;
+    bool m_ExistingHeapCaps = false;
+
+    // 23: Options4
+    bool m_Options4Available = true;
+    bool m_MSAA64KBAlignedTextureSupported = false;
+    D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0;
+    bool m_Native16BitShaderOpsSupported = false;
+
+    // 24: Serialization
+    bool m_SerializationAvailable = true;
+    std::vector<D3D12_HEAP_SERIALIZATION_TIER> m_HeapSerializationTier;
+
+    // 25: Cross Node
+    bool m_CrossNodeAvailable = true;
+    bool m_AtomicShaderInstructions = false;
+
+    // 27: Options5
+    bool m_Options5Available = true;
+    bool m_SRVOnlyTiledResourceTier3 = false;
+    D3D12_RENDER_PASS_TIER m_RenderPassesTier = D3D12_RENDER_PASS_TIER_0;
+    D3D12_RAYTRACING_TIER m_RaytracingTier = D3D12_RAYTRACING_TIER_NOT_SUPPORTED;
+
+    // 28: Displayable
+    bool m_DisplayableAvailable = true;
+    bool m_DisplayableTexture = false;
+    // D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0;
 };
 
 #endif

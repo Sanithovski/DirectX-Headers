@@ -4084,7 +4084,8 @@ RETTYPE NAME(UINT NodeIndex=0) const \
 // Macro to initialize a member feature data struct corresponding to the specified feature
 // Will stop the initialization process and return an error code upon failure
 #define INITIALIZE_MEMBER_DATA_CHECKED(FEATURE, MEMBER) \
-if (FAILED(m_hStatus = m_pDevice->CheckFeatureSupport(FEATURE, &MEMBER, sizeof(MEMBER)))) { \
+if (FAILED(m_hStatus = m_pDevice->CheckFeatureSupport(FEATURE, &MEMBER, sizeof(MEMBER)))) \
+{\
     return m_hStatus; \
 }
 
@@ -4114,7 +4115,6 @@ public:
 
         m_pDevice = pDevice;
 
-        
         // Initialize static feature support data structures
         if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS, m_dOptions)) {
             m_dOptions.DoublePrecisionFloatShaderOps = false;
@@ -4172,7 +4172,7 @@ public:
         if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS4, m_dOptions4)) {
             m_dOptions4.MSAA64KBAlignedTextureSupported = false;
             m_dOptions4.Native16BitShaderOpsSupported = false;
-            m_dOptions4.SharedResourceCompatibilityTier = (D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER)0; // TODO: 0 is occupied. See if needs another value
+            m_dOptions4.SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0;
         }
 
         if (INITIALIZE_FAILED(D3D12_FEATURE_CROSS_NODE, m_dCrossNode)) {
@@ -4182,14 +4182,14 @@ public:
 
         if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS5, m_dOptions5)) {
             m_dOptions5.SRVOnlyTiledResourceTier3 = false;
-            m_dOptions5.RenderPassesTier = (D3D12_RENDER_PASS_TIER)0; // TODO: 0 is occupied
+            m_dOptions5.RenderPassesTier = D3D12_RENDER_PASS_TIER_0;
             m_dOptions5.RaytracingTier = D3D12_RAYTRACING_TIER_NOT_SUPPORTED;
         }
 
         if (INITIALIZE_FAILED(D3D12_FEATURE_DISPLAYABLE, m_dDisplayable)) {
             m_dDisplayable.DisplayableTexture = false;
             // TODO: Check if it's the same property as in Options4?
-            m_dDisplayable.SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0; // TODO: 0 is occupied
+            m_dDisplayable.SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0;
         }
 
         if (INITIALIZE_FAILED(D3D12_FEATURE_D3D12_OPTIONS6, m_dOptions6)) {
@@ -4234,41 +4234,41 @@ public:
         m_dSerialization.resize(uNodeCount);
         m_dProtectedResourceSessionTypeCount.resize(uNodeCount);
         m_dProtectedResourceSessionTypes.resize(uNodeCount);
-        for (UINT i = 0; i < uNodeCount; i++) {
-            m_dProtectedResourceSessionSupport[i].NodeIndex = i;
-            if (INITIALIZE_FAILED(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_SUPPORT, m_dProtectedResourceSessionSupport[i])) {
-                m_dProtectedResourceSessionSupport[i].Support = D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE;
+        for (UINT NodeIndex = 0; NodeIndex < uNodeCount; NodeIndex++) {
+            m_dProtectedResourceSessionSupport[NodeIndex].NodeIndex = NodeIndex;
+            if (INITIALIZE_FAILED(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_SUPPORT, m_dProtectedResourceSessionSupport[NodeIndex])) {
+                m_dProtectedResourceSessionSupport[NodeIndex].Support = D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE;
             }
 
-            m_dArchitecture1[i].NodeIndex = i;
-            if (INITIALIZE_FAILED(D3D12_FEATURE_ARCHITECTURE1, m_dArchitecture1[i])) {
+            m_dArchitecture1[NodeIndex].NodeIndex = NodeIndex;
+            if (INITIALIZE_FAILED(D3D12_FEATURE_ARCHITECTURE1, m_dArchitecture1[NodeIndex])) {
                 D3D12_FEATURE_DATA_ARCHITECTURE dArchLocal = {};
-                dArchLocal.NodeIndex = i;
+                dArchLocal.NodeIndex = NodeIndex;
                 if (INITIALIZE_FAILED(D3D12_FEATURE_ARCHITECTURE, dArchLocal)) {
                     dArchLocal.TileBasedRenderer = false;
                     dArchLocal.UMA = false;
                     dArchLocal.CacheCoherentUMA = false;
                 }
                 
-                m_dArchitecture1[i].TileBasedRenderer = dArchLocal.TileBasedRenderer;
-                m_dArchitecture1[i].UMA = dArchLocal.UMA;
-                m_dArchitecture1[i].CacheCoherentUMA = dArchLocal.CacheCoherentUMA;
-                m_dArchitecture1[i].IsolatedMMU = false;
+                m_dArchitecture1[NodeIndex].TileBasedRenderer = dArchLocal.TileBasedRenderer;
+                m_dArchitecture1[NodeIndex].UMA = dArchLocal.UMA;
+                m_dArchitecture1[NodeIndex].CacheCoherentUMA = dArchLocal.CacheCoherentUMA;
+                m_dArchitecture1[NodeIndex].IsolatedMMU = false;
             }
 
-            m_dSerialization[i].NodeIndex = i;
-            if (INITIALIZE_FAILED(D3D12_FEATURE_SERIALIZATION, m_dSerialization[i])) {
-                m_dSerialization[i].HeapSerializationTier = (D3D12_HEAP_SERIALIZATION_TIER)0; // TODO: 0 is occupied
+            m_dSerialization[NodeIndex].NodeIndex = NodeIndex;
+            if (INITIALIZE_FAILED(D3D12_FEATURE_SERIALIZATION, m_dSerialization[NodeIndex])) {
+                m_dSerialization[NodeIndex].HeapSerializationTier = D3D12_HEAP_SERIALIZATION_TIER_0;
             }
 
-            m_dProtectedResourceSessionTypeCount[i].NodeIndex = i;
-            if (INITIALIZE_FAILED(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPE_COUNT, m_dProtectedResourceSessionTypeCount[i])) {
-                m_dProtectedResourceSessionTypeCount[i].Count = 0;
+            m_dProtectedResourceSessionTypeCount[NodeIndex].NodeIndex = NodeIndex;
+            if (INITIALIZE_FAILED(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPE_COUNT, m_dProtectedResourceSessionTypeCount[NodeIndex])) {
+                m_dProtectedResourceSessionTypeCount[NodeIndex].Count = 0;
             }
 
             // Special procedure to initialize local protected resource session types structs
             // Must wait until session type count initialized
-            QueryProtectedResourceSessionTypes(i, m_dProtectedResourceSessionTypeCount[i].Count);
+            QueryProtectedResourceSessionTypes(NodeIndex, m_dProtectedResourceSessionTypeCount[NodeIndex].Count);
         }
 
         // Initialize features that requires highest version check
@@ -4323,12 +4323,35 @@ public:
     FEATURE_SUPPORT_GET(BOOL, m_dOptions, TypedUAVLoadAdditionalFormats);
     FEATURE_SUPPORT_GET(BOOL, m_dOptions, ROVsSupported);
     FEATURE_SUPPORT_GET(D3D12_CONSERVATIVE_RASTERIZATION_TIER, m_dOptions, ConservativeRasterizationTier);
-    FEATURE_SUPPORT_GET(UINT, m_dOptions, MaxGPUVirtualAddressBitsPerResource);
     FEATURE_SUPPORT_GET(BOOL, m_dOptions, StandardSwizzle64KBSupported);
-    FEATURE_SUPPORT_GET(D3D12_CROSS_NODE_SHARING_TIER, m_dOptions, CrossNodeSharingTier);
     FEATURE_SUPPORT_GET(BOOL, m_dOptions, CrossAdapterRowMajorTextureSupported);
     FEATURE_SUPPORT_GET(BOOL, m_dOptions, VPAndRTArrayIndexFromAnyShaderFeedingRasterizerSupportedWithoutGSEmulation);
     FEATURE_SUPPORT_GET(D3D12_RESOURCE_HEAP_TIER, m_dOptions, ResourceHeapTier);
+
+    // Special procedure for handling caps that is also part of other features
+    D3D12_CROSS_NODE_SHARING_TIER CrossNodeSharingTier() const
+    {
+        if (m_dCrossNode.SharingTier > D3D12_CROSS_NODE_SHARING_TIER_NOT_SUPPORTED)
+        {
+            return m_dCrossNode.SharingTier;
+        }
+        else
+        {
+            return m_dOptions.CrossNodeSharingTier;
+        }
+    }
+
+    UINT MaxGPUVirtualAddressBitsPerResource() const
+    {
+        if (m_dOptions.MaxGPUVirtualAddressBitsPerResource > 0) 
+        {
+            return m_dOptions.MaxGPUVirtualAddressBitsPerResource;
+        }
+        else 
+        {
+            return m_dGPUVASupport.MaxGPUVirtualAddressBitsPerResource;
+        }
+    }
 
     // 1: Architecture
     // Combined with Architecture1
@@ -4386,8 +4409,7 @@ public:
     }
 
     // 6: GPU Virtual Address Support
-    // TODO: Check if it's exactly the same field as the one in the D3D12_Options feature
-    // FEATURE_SUPPORT_GET(UINT, m_dGPUVASupport, MaxGPUVirtualAddressBitsPerResource);
+    // MaxGPUVirtualAddressBitsPerResource handled in D3D12Options
     FEATURE_SUPPORT_GET(UINT, m_dGPUVASupport, MaxGPUVirtualAddressBitsPerProcess);
 
     // 7: Shader Model
@@ -4463,7 +4485,7 @@ public:
     FEATURE_SUPPORT_GET_NODE_INDEXED(D3D12_HEAP_SERIALIZATION_TIER, m_dSerialization, HeapSerializationTier);
 
     // 25: Cross Node
-    // FEATURE_SUPPORT_GET_NAME(D3D12_CROSS_NODE_SHARING_TIER, m_dCrossNode, SharingTier, CrossNodeSharingTier); // Duplicate in D3D12Options
+    // CrossNodeSharingTier handled in D3D12Options
     FEATURE_SUPPORT_GET_NAME(BOOL, m_dCrossNode, AtomicShaderInstructions, CrossNodeAtomicShaderInstructions);
     
     // 27: D3D12 Options5
@@ -4577,11 +4599,8 @@ private: // Private helpers
             D3D_ROOT_SIGNATURE_VERSION_1_0,
             D3D_ROOT_SIGNATURE_VERSION_1,
         };
-
         UINT numRootSignatureVersions = sizeof(allRootSignatureVersions) / sizeof(D3D_ROOT_SIGNATURE_VERSION);
 
-
-        // ROOT_SIGNATURE_VERSION_1_X
         for (UINT i = 0; i < numRootSignatureVersions; i++) {
             m_dRootSignature.HighestVersion = allRootSignatureVersions[i];
             result = m_pDevice->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &m_dRootSignature, sizeof(D3D12_FEATURE_DATA_ROOT_SIGNATURE));
@@ -4676,7 +4695,6 @@ private: // Member data
     D3D12_FEATURE_DATA_D3D12_OPTIONS5 m_dOptions5;
     D3D12_FEATURE_DATA_DISPLAYABLE m_dDisplayable;
     D3D12_FEATURE_DATA_D3D12_OPTIONS6 m_dOptions6;
-    // D3D12_FEATURE_DATA_QUERY_META_COMMAND m_dQueryMetaCommand; // Cat3
     D3D12_FEATURE_DATA_D3D12_OPTIONS7 m_dOptions7;
     std::vector<D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_TYPE_COUNT> m_dProtectedResourceSessionTypeCount; // Cat2 NodeIndex
     std::vector<ProtectedResourceSessionTypesLocal> m_dProtectedResourceSessionTypes; // Cat3

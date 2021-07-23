@@ -709,25 +709,6 @@ public: // IUnknown
                 }
                 pSM->HighestShaderModel = min(pSM->HighestShaderModel,m_HighestSupportedShaderModel);
             } return S_OK;
-        
-        // Not ready for testing yet
-        // TODO: Unknown feature enum?
-        /*
-        case D3D12_FEATURE_SUPPORTED_PSO_FLAGS:
-            {
-                D3D12_FEATURE_DATA_SUPPORTED_PSO_FLAGS* pFlags =
-                    static_cast<D3D12_FEATURE_DATA_SUPPORTED_PSO_FLAGS*>(pFeatureSupportData);
-                if (FeatureSupportDataSize != sizeof(*pFlags))
-                {
-                    return E_INVALIDARG;
-                }
-                if (pFlags->SupportedFlags & ~D3D12_PIPELINE_STATE_FLAG_MASK_WARP)
-                {
-                    return E_INVALIDARG;
-                }
-                pFlags->SupportedFlags &= GetValidPipelineStateFlags();
-            } return S_OK;
-        */
         case D3D12_FEATURE_SHADER_CACHE:
             {
                 if (!m_ShaderCacheAvailable) 
@@ -740,34 +721,6 @@ public: // IUnknown
                 {
                     return E_INVALIDARG;
                 }
-                // Simplify the implementation by arbitarily assign a return value
-                /*
-                pFlags->SupportFlags = D3D12_SHADER_CACHE_SUPPORT_SINGLE_PSO;
-                if (IsD3D12DDIVersionOrLater(e_DDI_12_1_0010))
-                {
-                    pFlags->SupportFlags |= D3D12_SHADER_CACHE_SUPPORT_LIBRARY;
-                }
-                if (m_pDefShaderCacheSession)
-                {
-                    pFlags->SupportFlags |= D3D12_SHADER_CACHE_SUPPORT_AUTOMATIC_INPROC_CACHE;
-                    if (m_pDefShaderCacheSession->ResolvedMode() == D3D12_SHADER_CACHE_MODE_DISK)
-                    {
-                        pFlags->SupportFlags |= D3D12_SHADER_CACHE_SUPPORT_AUTOMATIC_DISK_CACHE;
-                    }
-                }
-                if (m_D3D12Options.DriverManagedShaderCachePresent)
-                {
-                    pFlags->SupportFlags |= D3D12_SHADER_CACHE_SUPPORT_DRIVER_MANAGED_CACHE;
-                }
-                if (IsShaderCache_ClearPresent())
-                {
-                    pFlags->SupportFlags |= D3D12_SHADER_CACHE_SUPPORT_SHADER_CONTROL_CLEAR;
-                }
-                if (IsShaderCache_DeletePresent())
-                {
-                    pFlags->SupportFlags |= D3D12_SHADER_CACHE_SUPPORT_SHADER_SESSION_DELETE;
-                }
-                */
                pFlags->SupportFlags = m_ShaderCacheSupportFlags;
             } return S_OK;
         case D3D12_FEATURE_COMMAND_QUEUE_PRIORITY:

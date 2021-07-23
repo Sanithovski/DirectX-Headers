@@ -743,6 +743,7 @@ TEST_F(FeatureSupportTest, DisplayableBasic)
 
     EXPECT_TRUE(features.DisplayableTexture());
     EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3);
+    EXPECT_EQ(features.DisplayableSharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3);
 }
 
 // Unavailable Test
@@ -756,6 +757,7 @@ TEST_F(FeatureSupportTest, DisplayableUnavailable)
 
     EXPECT_FALSE(features.DisplayableTexture());
     EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3); // Still initialized by Options4
+    EXPECT_EQ(features.DisplayableSharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0); // This should have been affected
 }
 
 // TODO: Duplicate caps tests

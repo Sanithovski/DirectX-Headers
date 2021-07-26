@@ -9,6 +9,9 @@
 
 #include "MockDevice.hpp"
 
+#define INIT_FEATURES() \
+CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+
 class FeatureSupportTest : public ::testing::Test {
 protected: 
     void SetUp() override {
@@ -44,7 +47,7 @@ TEST_F(FeatureSupportTest, D3D12Options) {
     device->m_MaxGPUVirtualAddressBitsPerResource = 10;
     device->m_ResourceHeapTier = D3D12_RESOURCE_HEAP_TIER_2;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_TRUE(features.DoublePrecisionFloatShaderOps());
     EXPECT_TRUE(features.OutputMergerLogicOp());
     EXPECT_EQ(features.MinPrecisionSupport(), D3D12_SHADER_MIN_PRECISION_SUPPORT_10_BIT | D3D12_SHADER_MIN_PRECISION_SUPPORT_16_BIT);
@@ -759,5 +762,190 @@ TEST_F(FeatureSupportTest, DisplayableUnavailable)
     EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3); // Still initialized by Options4
     EXPECT_EQ(features.DisplayableSharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0); // This should have been affected
 }
+
+// 30: D3D12 Options6
+// Basic Test
+TEST_F(FeatureSupportTest, Options6Basic)
+{
+    device->m_AdditionalShadingRatesSupported = true;
+    device->m_BackgroundProcessingSupported = true;
+    device->m_PerPrimitiveShadingRateSupportedWithViewportIndexing = true;
+    device->m_ShadingRateImageTileSize = 10;
+    device->m_VariableShadingRateTier = D3D12_VARIABLE_SHADING_RATE_TIER_2;
+
+    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+
+    EXPECT_TRUE(features.AdditionalShadingRatesSupported());
+    EXPECT_TRUE(features.BackgroundProcessingSupported());
+    EXPECT_TRUE(features.PerPrimitiveShadingRateSupportedWithViewportIndexing());
+    EXPECT_EQ(features.ShadingRateImageTileSize(), 10);
+    EXPECT_EQ(features.VariableShadingRateTier(), D3D12_VARIABLE_SHADING_RATE_TIER_2);
+}
+
+// Unavailable Test
+TEST_F(FeatureSupportTest, Options6Unavailable)
+{
+    device->m_Options6Available = false;
+    device->m_AdditionalShadingRatesSupported = true;
+    device->m_BackgroundProcessingSupported = true;
+    device->m_PerPrimitiveShadingRateSupportedWithViewportIndexing = true;
+    device->m_ShadingRateImageTileSize = 10;
+    device->m_VariableShadingRateTier = D3D12_VARIABLE_SHADING_RATE_TIER_2;
+
+    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+
+    EXPECT_FALSE(features.AdditionalShadingRatesSupported());
+    EXPECT_FALSE(features.BackgroundProcessingSupported());
+    EXPECT_FALSE(features.PerPrimitiveShadingRateSupportedWithViewportIndexing());
+    EXPECT_EQ(features.ShadingRateImageTileSize(), 0);
+    EXPECT_EQ(features.VariableShadingRateTier(), D3D12_VARIABLE_SHADING_RATE_TIER_NOT_SUPPORTED);
+}
+
+// 31: Query Meta Command
+// Only performs input and output consistency checks; not reflecting results from real device
+// Basic Test
+TEST_F(FeatureSupportTest, QueryMetaCommandBasic)
+{
+    UINT MockOutput[2] = {2, 8};
+    UINT MockOutputSize = sizeof(MockOutput);
+    device->m_pQueryOutputData = MockOutput;
+    device->m_QueryOutputDataSizeInBytes = MockOutputSize;
+
+    UINT MockInput[3] = {3, 6, 42};
+    UINT MockInputSize = sizeof(MockInput);
+    GUID MockCommandID = {1, 5, 9, {12, 17, 23, 38}}; // Not a real CommandID
+    UINT MockNodeMask = 0x12;
+
+    D3D12_FEATURE_DATA_QUERY_META_COMMAND QueryData;
+    QueryData.CommandId = MockCommandID;
+    QueryData.NodeMask = MockNodeMask;
+    QueryData.QueryInputDataSizeInBytes = MockInputSize;
+    QueryData.pQueryInputData = MockInput;
+    QueryData.QueryOutputDataSizeInBytes = MockOutputSize;
+    QueryData.pQueryOutputData = MockOutput;
+
+    INIT_FEATURES();
+
+    HRESULT result = features.QueryMetaCommand(QueryData);
+    EXPECT_EQ(result, S_OK);
+    EXPECT_EQ(device->m_CommandID, MockCommandID);
+    EXPECT_EQ(device->m_NodeMask, MockNodeMask);
+    EXPECT_EQ(device->m_QueryInputDataSizeInBytes, MockInputSize);
+    EXPECT_EQ(device->m_pQueryInputData, MockInput);
+    EXPECT_EQ(QueryData.QueryOutputDataSizeInBytes, MockOutputSize);
+    EXPECT_EQ(QueryData.pQueryOutputData, MockOutput);
+}
+
+// 32: Options7
+// Basic Test
+TEST_F(FeatureSupportTest, Options7Basic)
+{
+    device->m_MeshShaderTier = D3D12_MESH_SHADER_TIER_1;
+    device->m_SamplerFeedbackTier = D3D12_SAMPLER_FEEDBACK_TIER_1_0;
+
+    INIT_FEATURES();
+
+    EXPECT_EQ(features.MeshShaderTier(), D3D12_MESH_SHADER_TIER_1);
+    EXPECT_EQ(features.SamplerFeedbackTier(), D3D12_SAMPLER_FEEDBACK_TIER_1_0);
+}
+
+// Unavailable Test
+TEST_F(FeatureSupportTest, Options7Unavailable)
+{
+    device->m_Options7Available = false;
+    device->m_MeshShaderTier = D3D12_MESH_SHADER_TIER_1;
+    device->m_SamplerFeedbackTier = D3D12_SAMPLER_FEEDBACK_TIER_1_0;
+
+    INIT_FEATURES();
+
+    EXPECT_EQ(features.MeshShaderTier(), D3D12_MESH_SHADER_TIER_NOT_SUPPORTED);
+    EXPECT_EQ(features.SamplerFeedbackTier(), D3D12_SAMPLER_FEEDBACK_TIER_NOT_SUPPORTED);
+}
+
+// 33: Protected Resource Session Type Count
+// Basic Test
+TEST_F(FeatureSupportTest, ProtectedResourceSessionTypeCountBasic)
+{
+    device->m_ProtectedResourceSessionTypeCount[0] = 5;
+    device->m_ProtectedResourceSessionTypes[0].resize(5); // Must set the session types to a correct number
+
+    INIT_FEATURES();
+
+    EXPECT_EQ(features.ProtectedResourceSessionTypeCount(0), 5);
+}
+
+// Multicore Test
+TEST_F(FeatureSupportTest, ProtectedResourceSessionTypeCountMulticore)
+{
+    device->SetNodeCount(3);
+    device->m_ProtectedResourceSessionTypeCount = {3, 14, 21};
+    device->m_ProtectedResourceSessionTypes[0].resize(3);
+    device->m_ProtectedResourceSessionTypes[1].resize(14);
+    device->m_ProtectedResourceSessionTypes[2].resize(21);
+
+    INIT_FEATURES();
+
+    EXPECT_EQ(features.ProtectedResourceSessionTypeCount(0), 3);
+    EXPECT_EQ(features.ProtectedResourceSessionTypeCount(1), 14);
+    EXPECT_EQ(features.ProtectedResourceSessionTypeCount(2), 21);
+}
+
+// Unavailable Test
+TEST_F(FeatureSupportTest, ProtectedResourceSessionTypeCountUnavailable)
+{
+    device->m_ProtectedResourceSessionTypeCountAvailable = false;
+    device->SetNodeCount(3);
+    device->m_ProtectedResourceSessionTypeCount = {3, 14, 21};
+    device->m_ProtectedResourceSessionTypes[0].resize(3);
+    device->m_ProtectedResourceSessionTypes[1].resize(14);
+    device->m_ProtectedResourceSessionTypes[2].resize(21);
+
+    INIT_FEATURES();
+
+    EXPECT_EQ(features.ProtectedResourceSessionTypeCount(0), 0);
+    EXPECT_EQ(features.ProtectedResourceSessionTypeCount(1), 0);
+    EXPECT_EQ(features.ProtectedResourceSessionTypeCount(2), 0);
+}
+
+// 34: Protected Resource Session Types
+// Note: Protected Resource Seesion Type Count must be correctly set for this feature
+// Basic Test
+TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesBasic)
+{
+    device->m_ProtectedResourceSessionTypeCount[0] = 2;
+    device->m_ProtectedResourceSessionTypes[0] = {{1, 1, 2, {3, 5, 8, 13}}, {1, 4, 9, {16, 25, 36, 49}}}; // Some random GUID test data
+
+    INIT_FEATURES();
+
+    EXPECT_EQ(features.ProtectedResourceSessionTypes(), device->m_ProtectedResourceSessionTypes[0]);
+}
+
+// Multicore Test
+TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesMulticore)
+{
+    device->SetNodeCount(2);
+    device->m_ProtectedResourceSessionTypeCount = {2, 1};
+    device->m_ProtectedResourceSessionTypes[0] = {{1, 1, 2, {3, 5, 8, 13}}, {1, 4, 9, {16, 25, 36, 49}}}; // Some random GUID test data
+    device->m_ProtectedResourceSessionTypes[1] = {{5, 7, 9, {11, 13, 15, 17}}};
+
+    INIT_FEATURES();
+
+    EXPECT_EQ(features.ProtectedResourceSessionTypes(0), device->m_ProtectedResourceSessionTypes[0]);
+    EXPECT_EQ(features.ProtectedResourceSessionTypes(1), device->m_ProtectedResourceSessionTypes[1]);
+}
+
+// Unavailable Test
+// TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesUnavailable)
+// {
+//     device->m_ProtectedResourceSessionTypesAvailable = false;
+//     device->m_ProtectedResourceSessionTypeCount[0] = 2;
+//     device->m_ProtectedResourceSessionTypes[0] = {{1, 1, 2, {3, 5, 8, 13}}, {1, 4, 9, {16, 25, 36, 49}}}; // Some random GUID test data
+
+//     INIT_FEATURES();
+
+//     // TODO: Decide on expected behavior
+//     EXPECT_EQ(features.ProtectedResourceSessionTypes(0).size(), 0);
+// }
+
 
 // TODO: Duplicate caps tests

@@ -20,6 +20,8 @@ public: // Constructors and custom functions
     , m_IsolatedMMU(m_NodeCount, false)
     , m_ProtectedResourceSessionSupport(m_NodeCount, D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE)
     , m_HeapSerializationTier(m_NodeCount, D3D12_HEAP_SERIALIZATION_TIER_0)
+    , m_ProtectedResourceSessionTypeCount(m_NodeCount, 0)
+    , m_ProtectedResourceSessionTypes(m_NodeCount)
     {
 
     }
@@ -33,6 +35,8 @@ public: // Constructors and custom functions
         m_IsolatedMMU.resize(NewCount);
         m_ProtectedResourceSessionSupport.resize(NewCount);
         m_HeapSerializationTier.resize(NewCount);
+        m_ProtectedResourceSessionTypeCount.resize(NewCount);
+        m_ProtectedResourceSessionTypes.resize(NewCount);
     }
 
 public: // ID3D12Device
@@ -890,60 +894,43 @@ public: // IUnknown
                 pD3D12Displayable->DisplayableTexture = m_DisplayableTexture;
                 pD3D12Displayable->SharedResourceCompatibilityTier = m_SharedResourceCompatibilityTier;
             } return S_OK;
-        /*
+        
         case D3D12_FEATURE_D3D12_OPTIONS6:
         {
+            if (!m_Options6Available) 
+            {
+                return E_INVALIDARG;
+            }
+
             auto* pD3D12Options6 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS6*>(pFeatureSupportData);
             if (FeatureSupportDataSize != sizeof(*pD3D12Options6))
             {
                 return E_INVALIDARG;
             }
-
-            *pD3D12Options6 = m_ValidationInfo.m_Options6;
+            pD3D12Options6->AdditionalShadingRatesSupported = m_AdditionalShadingRatesSupported;
+            pD3D12Options6->BackgroundProcessingSupported = m_BackgroundProcessingSupported;
+            pD3D12Options6->PerPrimitiveShadingRateSupportedWithViewportIndexing = m_PerPrimitiveShadingRateSupportedWithViewportIndexing;
+            pD3D12Options6->ShadingRateImageTileSize = m_ShadingRateImageTileSize;
+            pD3D12Options6->VariableShadingRateTier = m_VariableShadingRateTier;
         } return S_OK;
         case D3D12_FEATURE_QUERY_META_COMMAND:
         {
-            if (IsD3D12DDIVersionOrLater(e_DDI_12_6_0061))
+            if (m_QueryMetaCommandAvailable)
             {
                 if (FeatureSupportDataSize != sizeof(D3D12_FEATURE_DATA_QUERY_META_COMMAND))
                 {
                     return E_INVALIDARG;
                 }
-
+                
+                // Only checks inputs and outputs
                 auto* pQueryData = static_cast<D3D12_FEATURE_DATA_QUERY_META_COMMAND*>(pFeatureSupportData);
-
-                // Copy public API data to the DDI version, which does not have a NodeMask.
-                D3D12DDICAPS_QUERY_META_COMMAND_CAPS_0061 QueryDataInternal = {};
-                QueryDataInternal.CommandId = pQueryData->CommandId;
-                QueryDataInternal.pQueryInputData = pQueryData->pQueryInputData;
-                QueryDataInternal.QueryInputDataSizeInBytes = pQueryData->QueryInputDataSizeInBytes;
-                QueryDataInternal.pQueryOutputData = pQueryData->pQueryOutputData;
-                QueryDataInternal.QueryOutputDataSizeInBytes = pQueryData->QueryOutputDataSizeInBytes;
-
-                if (!DeveloperModeEnabled())
-                {
-                    if (!m_ApprovedMetaCommands.IsMetaCommandSupported(pQueryData->CommandId, m_eDDI))
-                    {
-                        GetOutermostDevicePrivate()->ReportRetailValidationError(D3D12_MESSAGE_ID_META_COMMAND_ID_INVALID, 0);
-                        return E_INVALIDARG;
-                    }
-                }
-
-                try
-                {
-                    // TranslateNodeMask and NodeMaskToIndex used instead of GetDDINodeIndex to enable error report.
-                    UINT DDIMask = TranslateNodeMask(pQueryData->NodeMask, TranslateNodeMaskFlags::RequireSingleBit);
-                    auto nodeIndex = NodeMaskToIndex(DDIMask);
-                    
-                    return GetCaps(D3D12DDICAPS_TYPE_QUERY_META_COMMAND_CAPS_0061,
-                        &nodeIndex,
-                        &QueryDataInternal,
-                        sizeof(QueryDataInternal));
-                }
-                catch( _com_error& hrEx)
-                {
-                    return hrEx.Error();
-                }
+                m_CommandID = pQueryData->CommandId;
+                m_pQueryInputData = pQueryData->pQueryInputData;
+                m_NodeMask = pQueryData->NodeMask;
+                m_QueryInputDataSizeInBytes = pQueryData->QueryInputDataSizeInBytes;
+                
+                pQueryData->QueryOutputDataSizeInBytes = m_QueryOutputDataSizeInBytes;
+                pQueryData->pQueryOutputData = m_pQueryOutputData;
             }
             else
             {
@@ -952,16 +939,25 @@ public: // IUnknown
         } return S_OK;
         case D3D12_FEATURE_D3D12_OPTIONS7:
         {
+            if (!m_Options7Available)
+            {
+                return E_INVALIDARG;
+            }
             auto* pD3D12Options7 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS7*>(pFeatureSupportData);
             if (FeatureSupportDataSize != sizeof(*pD3D12Options7))
             {
                 return E_INVALIDARG;
             }
 
-            *pD3D12Options7 = m_ValidationInfo.m_Options7;
+            pD3D12Options7->MeshShaderTier = m_MeshShaderTier;
+            pD3D12Options7->SamplerFeedbackTier = m_SamplerFeedbackTier;
         } return S_OK;
         case D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPE_COUNT:
             {
+                if (!m_ProtectedResourceSessionTypeCountAvailable)
+                {
+                    return E_INVALIDARG;
+                }
                 auto* pProtectedResourceSessionTypesCount =
                     static_cast<D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_TYPE_COUNT*>(pFeatureSupportData);
                 if (   FeatureSupportDataSize != sizeof(*pProtectedResourceSessionTypesCount)
@@ -970,13 +966,14 @@ public: // IUnknown
                     return E_INVALIDARG;
                 }
 
-                pProtectedResourceSessionTypesCount->Count = EnsureContentProtectionSupported() ?
-                    static_cast<UINT>(m_PerNodeContentProtectionResourceCaps[pProtectedResourceSessionTypesCount->NodeIndex].ProtectionTypes.size())
-                    : 0;
-
+                pProtectedResourceSessionTypesCount->Count = m_ProtectedResourceSessionTypeCount[pProtectedResourceSessionTypesCount->NodeIndex];
             } return S_OK;
         case D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPES:
             {
+                if (!m_ProtectedResourceSessionTypesAvailable)
+                {
+                    return E_INVALIDARG;
+                }
                 auto* pProtectedResourceSessionTypes =
                     static_cast<D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_TYPES*>(pFeatureSupportData);
                 if (   FeatureSupportDataSize != sizeof(*pProtectedResourceSessionTypes)
@@ -984,11 +981,7 @@ public: // IUnknown
                 {
                     return E_INVALIDARG;
                 }
-
-                UINT ExpectedCount = EnsureContentProtectionSupported() ?
-                    static_cast<UINT>(m_PerNodeContentProtectionResourceCaps[pProtectedResourceSessionTypes->NodeIndex].ProtectionTypes.size())
-                    : 0;
-
+                UINT ExpectedCount = m_ProtectedResourceSessionTypeCount[pProtectedResourceSessionTypes->NodeIndex];
                 if (pProtectedResourceSessionTypes->Count != ExpectedCount)
                 {
                     return E_INVALIDARG;
@@ -996,27 +989,11 @@ public: // IUnknown
 
                 if (ExpectedCount > 0)
                 {
-                    memcpy(pProtectedResourceSessionTypes->pTypes, m_PerNodeContentProtectionResourceCaps[pProtectedResourceSessionTypes->NodeIndex].ProtectionTypes.data(), ExpectedCount * sizeof(*pProtectedResourceSessionTypes->pTypes));
+                    memcpy(pProtectedResourceSessionTypes->pTypes, m_ProtectedResourceSessionTypes[pProtectedResourceSessionTypes->NodeIndex].data(), ExpectedCount * sizeof(*pProtectedResourceSessionTypes->pTypes));
                 }
 
             } return S_OK;
-        case D3D12_FEATURE_TRACKED_WORKLOAD:
-        {
-            auto* pTrackedWorkload = static_cast<D3D12_FEATURE_DATA_TRACKED_WORKLOAD*>(pFeatureSupportData);
-            if (FeatureSupportDataSize != sizeof(*pTrackedWorkload))
-            {
-                return E_INVALIDARG;
-            }
-            if (pTrackedWorkload->CommandListType >= D3D12_COMMAND_LIST_TYPE_MAX_VALID)
-            {
-                return E_INVALIDARG;
-            }
-            if (!Feature_TrackedWorkload::IsEnabled())
-            {
-                return E_INVALIDARG;
-            }
-            return CTrackedWorkload::GetTrackedWorkloadSupport(GetDXGIDevice(), m_APIToDDINodeMap[pTrackedWorkload->NodeIndex], pTrackedWorkload->CommandListType, pTrackedWorkload->Support);
-        } 
+        /*
         case D3D12_FEATURE_D3D12_OPTIONS8:
         {
             D3D12_FEATURE_DATA_D3D12_OPTIONS8 *pD3D12Options8 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS8*>(pFeatureSupportData);
@@ -1234,6 +1211,37 @@ public: // For simplicity, allow tests to set the internal state values for this
     bool m_DisplayableAvailable = true;
     bool m_DisplayableTexture = false;
     // D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0;
+
+    // 30: Options6
+    bool m_Options6Available = true;
+    bool m_AdditionalShadingRatesSupported = false;
+    bool m_PerPrimitiveShadingRateSupportedWithViewportIndexing = false;
+    D3D12_VARIABLE_SHADING_RATE_TIER m_VariableShadingRateTier = D3D12_VARIABLE_SHADING_RATE_TIER_NOT_SUPPORTED;
+    UINT m_ShadingRateImageTileSize = 0;
+    bool m_BackgroundProcessingSupported = false;
+
+    // 31: Query Meta Command
+    bool m_QueryMetaCommandAvailable = true;
+    GUID m_CommandID = {};
+    UINT m_NodeMask = 0;
+    const void* m_pQueryInputData = nullptr;
+    SIZE_T m_QueryInputDataSizeInBytes = 0;
+    void* m_pQueryOutputData = nullptr;
+    SIZE_T m_QueryOutputDataSizeInBytes = 0;
+
+    // 32: Options7
+    bool m_Options7Available = true;
+    D3D12_MESH_SHADER_TIER m_MeshShaderTier = D3D12_MESH_SHADER_TIER_NOT_SUPPORTED;
+    D3D12_SAMPLER_FEEDBACK_TIER m_SamplerFeedbackTier = D3D12_SAMPLER_FEEDBACK_TIER_NOT_SUPPORTED;
+
+    // 33: Protected Resource Session Type Count
+    bool m_ProtectedResourceSessionTypeCountAvailable = true;
+    std::vector<UINT> m_ProtectedResourceSessionTypeCount;
+
+    // 34: Protected Resource Session Types
+    bool m_ProtectedResourceSessionTypesAvailable = true;
+    std::vector<std::vector<GUID>> m_ProtectedResourceSessionTypes;
+
 };
 
 #endif

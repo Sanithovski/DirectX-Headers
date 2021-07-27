@@ -140,7 +140,8 @@ TEST_F(FeatureSupportTest, FeatureLevelBasic)
 // Test through all supported feature levels
 TEST_F(FeatureSupportTest, FeatureLevelAll)
 {
-    std::vector<D3D_FEATURE_LEVEL> allLevels = {
+    std::vector<D3D_FEATURE_LEVEL> allLevels = 
+    {
         D3D_FEATURE_LEVEL_1_0_CORE,
         D3D_FEATURE_LEVEL_9_1,
         D3D_FEATURE_LEVEL_9_2,
@@ -154,7 +155,8 @@ TEST_F(FeatureSupportTest, FeatureLevelAll)
         D3D_FEATURE_LEVEL_12_2
     };
 
-    for (unsigned int i = 0; i < allLevels.size(); i++) {
+    for (unsigned int i = 0; i < allLevels.size(); i++) 
+    {
         device->m_FeatureLevel = allLevels[i];
         INIT_FEATURES();
         EXPECT_EQ(features.HighestFeatureLevel(), allLevels[i]);
@@ -918,17 +920,32 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesMulticore)
 }
 
 // Unavailable Test
-// TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesUnavailable)
-// {
-//     device->m_ProtectedResourceSessionTypesAvailable = false;
-//     device->m_ProtectedResourceSessionTypeCount[0] = 2;
-//     device->m_ProtectedResourceSessionTypes[0] = {{1, 1, 2, {3, 5, 8, 13}}, {1, 4, 9, {16, 25, 36, 49}}}; // Some random GUID test data
+TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesUnavailable)
+{
+    device->m_ProtectedResourceSessionTypesAvailable = false;
+    device->m_ProtectedResourceSessionTypeCount[0] = 2;
+    device->m_ProtectedResourceSessionTypes[0] = {{1, 1, 2, {3, 5, 8, 13}}, {1, 4, 9, {16, 25, 36, 49}}}; // Some random GUID test data
 
-//     INIT_FEATURES();
+    INIT_FEATURES();
 
-//     // TODO: Decide on expected behavior
-//     EXPECT_EQ(features.ProtectedResourceSessionTypes(0).size(), 0);
-// }
+    // TODO: Decide on expected behavior
+    EXPECT_EQ(features.ProtectedResourceSessionTypes(0).size(), 2);
+    EXPECT_EQ(features.ProtectedResourceSessionTypes()[0], GUID());
+    EXPECT_EQ(features.ProtectedResourceSessionTypes()[1], GUID());
+}
+
+// Test where ProtectedResourceSessiontTypeCount is unavailable
+TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesCascadeUnavailable)
+{
+    device->m_ProtectedResourceSessionTypeCountAvailable = false;
+    device->m_ProtectedResourceSessionTypeCount[0] = 2;
+    device->m_ProtectedResourceSessionTypes[0] = {{1, 1, 2, {3, 5, 8, 13}}, {1, 4, 9, {16, 25, 36, 49}}}; // Some random GUID test data
+
+    INIT_FEATURES();
+
+    EXPECT_EQ(features.ProtectedResourceSessionTypeCount(0), 0);
+    EXPECT_EQ(features.ProtectedResourceSessionTypes(0).size(), 0);
+}
 
 // 36: Options8
 // Basic Test
@@ -1075,6 +1092,7 @@ TEST_F(FeatureSupportTest, DuplicateSharedResourceCompatibilityTierNegatvie)
 
 // System Test
 // Test if the system works when all features are initialized and queries
+// Skips functions that only does forwarding
 TEST_F(FeatureSupportTest, SystemTest)
 {
     device->SetNodeCount(2);
@@ -1142,7 +1160,7 @@ TEST_F(FeatureSupportTest, SystemTest)
     device->m_ExistingHeapCaps = true;
 
     device->m_MSAA64KBAlignedTextureSupported = true;
-    device->m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3; // Duplicate member
+    device->m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3;
     device->m_Native16BitShaderOpsSupported = true;
 
     device->m_HeapSerializationTier = 
@@ -1264,7 +1282,6 @@ TEST_F(FeatureSupportTest, SystemTest)
     EXPECT_TRUE(features.SRVOnlyTiledResourceTier3());
 
     EXPECT_TRUE(features.DisplayableTexture());
-    EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3);
 
     EXPECT_TRUE(features.AdditionalShadingRatesSupported());
     EXPECT_TRUE(features.BackgroundProcessingSupported());

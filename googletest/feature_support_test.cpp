@@ -10,7 +10,9 @@
 #include "MockDevice.hpp"
 
 #define INIT_FEATURES() \
-CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    CD3DX12FeatureSupport features; \
+    HRESULT InitResult = features.Init(device); \
+    EXPECT_EQ(features.GetStatus(), S_OK);
 
 class FeatureSupportTest : public ::testing::Test {
 protected: 
@@ -26,11 +28,9 @@ protected:
 };
 
 TEST_F(FeatureSupportTest, Initialization) {
-    CD3DX12FeatureSupport feature_struct = CD3DX12FeatureSupport::Create(device);
-    EXPECT_EQ(feature_struct.GetStatus(), S_OK);
-    
-    CD3DX12FeatureSupport feature_struct_another(device);
-    EXPECT_EQ(feature_struct_another.GetStatus(), S_OK);
+    CD3DX12FeatureSupport features;
+    EXPECT_EQ(features.Init(device), S_OK);
+    EXPECT_EQ(features.GetStatus(), S_OK);
 }
 
 // 0: D3D12_OPTIONS
@@ -75,7 +75,7 @@ TEST_F(FeatureSupportTest, Architecture1Available)
     device->m_CacheCoherentUMA[0] = true;
     device->m_IsolatedMMU[0] = true;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_FALSE(features.TileBasedRenderer(0));
     EXPECT_TRUE(features.UMA(0));
     EXPECT_TRUE(features.CacheCoherentUMA(0));
@@ -91,7 +91,7 @@ TEST_F(FeatureSupportTest, Architecture1Unavailable)
     device->m_CacheCoherentUMA[0] = false;
     device->m_IsolatedMMU[0] = true; // Notice that if architecture1 is not available, IslatedMMU cap should not be present
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_FALSE(features.TileBasedRenderer(0));
     EXPECT_TRUE(features.UMA(0));
     EXPECT_FALSE(features.CacheCoherentUMA(0));
@@ -108,7 +108,7 @@ TEST_F(FeatureSupportTest, ArchitectureMulticore)
     device->m_CacheCoherentUMA = {false, false, true};
     device->m_IsolatedMMU = {false, true, false};
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     
     EXPECT_FALSE(features.TileBasedRenderer(0));
     EXPECT_TRUE(features.TileBasedRenderer(1));
@@ -133,7 +133,7 @@ TEST_F(FeatureSupportTest, FeatureLevelBasic)
 {
     device->m_FeatureLevel = D3D_FEATURE_LEVEL_12_2;
     
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_EQ(features.HighestFeatureLevel(), D3D_FEATURE_LEVEL_12_2);
 }
 
@@ -156,7 +156,7 @@ TEST_F(FeatureSupportTest, FeatureLevelAll)
 
     for (unsigned int i = 0; i < allLevels.size(); i++) {
         device->m_FeatureLevel = allLevels[i];
-        CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+        INIT_FEATURES();
         EXPECT_EQ(features.HighestFeatureLevel(), allLevels[i]);
     }
 }
@@ -165,7 +165,7 @@ TEST_F(FeatureSupportTest, FeatureLevelAll)
 TEST_F(FeatureSupportTest, FeatureLevelHigher)
 {
     device->m_FeatureLevel = (D3D_FEATURE_LEVEL)(D3D_FEATURE_LEVEL_12_2 + 1);
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_EQ(features.HighestFeatureLevel(), D3D_FEATURE_LEVEL_12_2);
 }
 
@@ -176,7 +176,7 @@ TEST_F(FeatureSupportTest, FormatSupportPositive)
     device->m_FormatSupport1 = D3D12_FORMAT_SUPPORT1_BUFFER | D3D12_FORMAT_SUPPORT1_TEXTURE3D | D3D12_FORMAT_SUPPORT1_SHADER_SAMPLE_COMPARISON | D3D12_FORMAT_SUPPORT1_DECODER_OUTPUT;
     device->m_FormatSupport2 = D3D12_FORMAT_SUPPORT2_UAV_ATOMIC_ADD | D3D12_FORMAT_SUPPORT2_TILED;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     D3D12_FORMAT_SUPPORT1 support1;
     D3D12_FORMAT_SUPPORT2 support2;
@@ -192,7 +192,7 @@ TEST_F(FeatureSupportTest, FormatSupportNegative)
 {
     device->m_FormatSupport1 = D3D12_FORMAT_SUPPORT1_NONE;
     device->m_FormatSupport2 = D3D12_FORMAT_SUPPORT2_NONE;
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     D3D12_FORMAT_SUPPORT1 support1;
     D3D12_FORMAT_SUPPORT2 support2;
@@ -209,7 +209,7 @@ TEST_F(FeatureSupportTest, MultisampleQualityLevelsPositive)
 {
     device->m_NumQualityLevels = 42; // Arbitrary return value
     
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     DXGI_FORMAT inFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
     UINT inSampleCount = 10;
@@ -231,7 +231,7 @@ TEST_F(FeatureSupportTest, MultisampleQualityLevelsNegative)
     device->m_NumQualityLevels = 42;
     device->m_MultisampleQualityLevelsSucceed = false; // Simulate failure
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     DXGI_FORMAT inFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
     UINT inSampleCount = 6;
@@ -253,7 +253,7 @@ TEST_F(FeatureSupportTest, FormatInfoPositive)
 {
     device->m_PlaneCount = 4;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     DXGI_FORMAT inFormat = DXGI_FORMAT_D32_FLOAT;
     UINT8 PlaneCount;
@@ -270,7 +270,7 @@ TEST_F(FeatureSupportTest, FormatInfoNegative)
     device->m_PlaneCount = 6;
     device->m_DXGIFormatSupported = false;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     DXGI_FORMAT inFormat = DXGI_FORMAT_BC1_UNORM;
     UINT8 PlaneCount;
@@ -287,9 +287,8 @@ TEST_F(FeatureSupportTest, GPUVASupport)
     device->m_MaxGPUVirtualAddressBitsPerProcess = 16;
     device->m_MaxGPUVirtualAddressBitsPerResource = 12;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
-    EXPECT_EQ(features.GetStatus(), S_OK);
     EXPECT_EQ(features.MaxGPUVirtualAddressBitsPerProcess(), 16);
     EXPECT_EQ(features.MaxGPUVirtualAddressBitsPerResource(), 12);
 }
@@ -305,8 +304,8 @@ TEST_F(FeatureSupportTest, Options1Basic)
     device->m_ExpandedComputeResourceStates = true;
     device->m_Int64ShaderOpsSupported = true;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
-    EXPECT_EQ(features.GetStatus(), S_OK);
+    INIT_FEATURES();
+    
     EXPECT_TRUE(features.WaveOps());
     EXPECT_EQ(features.WaveLaneCountMin(), 2);
     EXPECT_EQ(features.WaveLaneCountMax(), 4);
@@ -327,9 +326,8 @@ TEST_F(FeatureSupportTest, Options1Unavailable)
     device->m_ExpandedComputeResourceStates = true;
     device->m_Int64ShaderOpsSupported = true;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
-    EXPECT_EQ(features.GetStatus(), S_OK);
     EXPECT_FALSE(features.WaveOps());
     EXPECT_EQ(features.WaveLaneCountMin(), 0);
     EXPECT_EQ(features.WaveLaneCountMax(), 0);
@@ -344,9 +342,8 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportBasic)
 {
     device->m_ProtectedResourceSessionSupport[0] = D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_SUPPORTED;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
-    EXPECT_EQ(features.GetStatus(), S_OK);
     EXPECT_EQ(features.ProtectedResourceSessionSupport(0), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_SUPPORTED);
 }
 
@@ -356,9 +353,8 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportNegative)
     device->m_ProtectedResourceSessionSupport[0] = D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_SUPPORTED;
     device->m_ContentProtectionSupported = false;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     
-    EXPECT_EQ(features.GetStatus(), S_OK);
     EXPECT_EQ(features.ProtectedResourceSessionSupport(), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE);
 }
 
@@ -374,9 +370,8 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportMulticore)
         D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE
     };
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
-    EXPECT_EQ(features.GetStatus(), S_OK);
     EXPECT_EQ(features.ProtectedResourceSessionSupport(0), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE);
     EXPECT_EQ(features.ProtectedResourceSessionSupport(1), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_SUPPORTED);
     EXPECT_EQ(features.ProtectedResourceSessionSupport(2), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_SUPPORTED);
@@ -389,9 +384,8 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportNotAvailable)
     device->m_ProtectedResourceSessionAvailable = false;
     device->m_ProtectedResourceSessionSupport[0] = D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_SUPPORTED;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
-    EXPECT_EQ(features.GetStatus(), S_OK);
     EXPECT_EQ(features.ProtectedResourceSessionSupport(0), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE);
 }
 
@@ -409,9 +403,8 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportNotAvailableMulticore)
         D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE
     };
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
-    EXPECT_EQ(features.GetStatus(), S_OK);
     EXPECT_EQ(features.ProtectedResourceSessionSupport(0), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE);
     EXPECT_EQ(features.ProtectedResourceSessionSupport(1), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE);
     EXPECT_EQ(features.ProtectedResourceSessionSupport(2), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE);
@@ -423,8 +416,7 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportNotAvailableMulticore)
 TEST_F(FeatureSupportTest, RootSignatureBasic)
 {
     device->m_RootSignatureHighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
-    EXPECT_EQ(features.GetStatus(), S_OK);
+    INIT_FEATURES();
     EXPECT_EQ(features.HighestRootSignatureVersion(), D3D_ROOT_SIGNATURE_VERSION_1_1);
 }
 
@@ -432,8 +424,7 @@ TEST_F(FeatureSupportTest, RootSignatureBasic)
 TEST_F(FeatureSupportTest, RootSignatureLower)
 {
     device->m_RootSignatureHighestVersion = D3D_ROOT_SIGNATURE_VERSION_1;
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
-    EXPECT_EQ(features.GetStatus(), S_OK);
+    INIT_FEATURES();
     EXPECT_EQ(features.HighestRootSignatureVersion(), D3D_ROOT_SIGNATURE_VERSION_1);
 }
 
@@ -441,8 +432,7 @@ TEST_F(FeatureSupportTest, RootSignatureLower)
 TEST_F(FeatureSupportTest, RootSignatureHigher)
 {
     device->m_RootSignatureHighestVersion = (D3D_ROOT_SIGNATURE_VERSION)(D3D_ROOT_SIGNATURE_VERSION_1_1 + 1);
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
-    EXPECT_EQ(features.GetStatus(), S_OK);
+    INIT_FEATURES();
     EXPECT_EQ(features.HighestRootSignatureVersion(), D3D_ROOT_SIGNATURE_VERSION_1_1);
 }
 
@@ -451,8 +441,7 @@ TEST_F(FeatureSupportTest, RootSignatureUnavailable)
 {
     device->m_RootSignatureAvailable = false;
     device->m_RootSignatureHighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
-    EXPECT_EQ(features.GetStatus(), S_OK);
+    INIT_FEATURES();
     EXPECT_EQ(features.HighestRootSignatureVersion(), 0);
 }
 
@@ -462,8 +451,7 @@ TEST_F(FeatureSupportTest, D3D12Options2Basic)
 {
     device->m_DepthBoundsTestSupport = true;
     device->m_ProgrammableSamplePositionsTier = D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER_2;
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
-    EXPECT_EQ(features.GetStatus(), S_OK);
+    INIT_FEATURES();
     EXPECT_TRUE(features.DepthBoundsTestSupported());
     EXPECT_EQ(features.ProgrammableSamplePositionsTier(), D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER_2);
 }
@@ -474,8 +462,7 @@ TEST_F(FeatureSupportTest, D3D12Options2Unavailable)
     device->m_Options2Available = false;
     device->m_DepthBoundsTestSupport = true;
     device->m_ProgrammableSamplePositionsTier = D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER_2;
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
-    EXPECT_EQ(features.GetStatus(), S_OK);
+    INIT_FEATURES();
     EXPECT_FALSE(features.DepthBoundsTestSupported());
     EXPECT_EQ(features.ProgrammableSamplePositionsTier(), D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER_NOT_SUPPORTED);
 }
@@ -492,8 +479,7 @@ TEST_F(FeatureSupportTest, ShaderCacheBasic)
         | D3D12_SHADER_CACHE_SUPPORT_SHADER_SESSION_DELETE;
     device->m_ShaderCacheSupportFlags = outFlags;
     
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
-    EXPECT_EQ(features.GetStatus(), S_OK);
+    INIT_FEATURES();
     EXPECT_EQ(features.ShaderCacheSupportFlags(), outFlags);
 }
 
@@ -509,8 +495,7 @@ TEST_F(FeatureSupportTest, ShaderCacheUnavailable)
         | D3D12_SHADER_CACHE_SUPPORT_SHADER_SESSION_DELETE;
     device->m_ShaderCacheSupportFlags = outFlags;
     
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
-    EXPECT_EQ(features.GetStatus(), S_OK);
+    INIT_FEATURES();
     EXPECT_EQ(features.ShaderCacheSupportFlags(), D3D12_SHADER_CACHE_SUPPORT_NONE);
 }
 
@@ -519,7 +504,7 @@ TEST_F(FeatureSupportTest, ShaderCacheUnavailable)
 TEST_F(FeatureSupportTest, CommandQueuePriorityBasic)
 {
     device->m_GlobalRealtimeCommandQueueSupport = true;
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_TRUE(features.CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL));
     EXPECT_TRUE(features.CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_HIGH));
     EXPECT_TRUE(features.CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME));
@@ -529,7 +514,7 @@ TEST_F(FeatureSupportTest, CommandQueuePriorityBasic)
 TEST_F(FeatureSupportTest, CommandQueuePriorityNegative)
 {
     device->m_GlobalRealtimeCommandQueueSupport = false;
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_FALSE(features.CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE_VIDEO_ENCODE, D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME)); // Global realtime not on
     EXPECT_FALSE(features.CommandQueuePrioritySupported((D3D12_COMMAND_LIST_TYPE)(D3D12_COMMAND_LIST_TYPE_VIDEO_ENCODE+1), D3D12_COMMAND_QUEUE_PRIORITY_NORMAL)); // Unknown command list type
     EXPECT_FALSE(features.CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE_COMPUTE, (D3D12_COMMAND_QUEUE_PRIORITY)10)); // Unknown Priority level
@@ -541,7 +526,7 @@ TEST_F(FeatureSupportTest, CommandQueuePriorityUnavailable)
     device->m_CommandQueuePriorityAvailable = false;
     
     device->m_GlobalRealtimeCommandQueueSupport = true;
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_FALSE(features.CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL));
     EXPECT_FALSE(features.CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_HIGH));
     EXPECT_FALSE(features.CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME));
@@ -557,7 +542,7 @@ TEST_F(FeatureSupportTest, Options3Basic)
     device->m_ViewInstancingTier = D3D12_VIEW_INSTANCING_TIER_3;
     device->m_BarycentricsSupported = true;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_TRUE(features.CopyQueueTimestampQueriesSupported());
     EXPECT_TRUE(features.CastingFullyTypedFormatSupported());
@@ -576,7 +561,7 @@ TEST_F(FeatureSupportTest, Options3Unavailable)
     device->m_ViewInstancingTier = D3D12_VIEW_INSTANCING_TIER_3;
     device->m_BarycentricsSupported = true;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_FALSE(features.CopyQueueTimestampQueriesSupported());
     EXPECT_FALSE(features.CastingFullyTypedFormatSupported());
@@ -590,7 +575,7 @@ TEST_F(FeatureSupportTest, Options3Unavailable)
 TEST_F(FeatureSupportTest, ExistingHeapsBasic)
 {
     device->m_ExistingHeapCaps = true;
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_TRUE(features.ExistingHeapsSupported());
 }
 
@@ -599,7 +584,7 @@ TEST_F(FeatureSupportTest, ExistingHeapsUnavailable)
 {
     device->m_ExistingHeapsAvailable = false;
     device->m_ExistingHeapCaps = true;
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_FALSE(features.ExistingHeapsSupported());
 }
 
@@ -611,7 +596,7 @@ TEST_F(FeatureSupportTest, Options4Basic)
     device->m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3; // Duplicate member
     device->m_Native16BitShaderOpsSupported = true;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_TRUE(features.MSAA64KBAlignedTextureSupported());
     EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3);
     EXPECT_TRUE(features.Native16BitShaderOpsSupported());
@@ -625,7 +610,7 @@ TEST_F(FeatureSupportTest, Options4Unavailable)
     device->m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3; // Duplicate member
     device->m_Native16BitShaderOpsSupported = true;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
     EXPECT_FALSE(features.MSAA64KBAlignedTextureSupported());
     EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0);
     EXPECT_FALSE(features.Native16BitShaderOpsSupported());
@@ -637,7 +622,7 @@ TEST_F(FeatureSupportTest, SerializationBasic)
 {
     device->m_HeapSerializationTier[0] = D3D12_HEAP_SERIALIZATION_TIER_10;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_EQ(features.HeapSerializationTier(), D3D12_HEAP_SERIALIZATION_TIER_10);
 }
@@ -653,7 +638,7 @@ TEST_F(FeatureSupportTest, SerializationMulticore)
         D3D12_HEAP_SERIALIZATION_TIER_10
     };
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_EQ(features.HeapSerializationTier(), D3D12_HEAP_SERIALIZATION_TIER_10);
     EXPECT_EQ(features.HeapSerializationTier(1), D3D12_HEAP_SERIALIZATION_TIER_0);
@@ -672,7 +657,7 @@ TEST_F(FeatureSupportTest, SerializationUnavailable)
         D3D12_HEAP_SERIALIZATION_TIER_10
     };
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_EQ(features.HeapSerializationTier(), D3D12_HEAP_SERIALIZATION_TIER_0);
     EXPECT_EQ(features.HeapSerializationTier(1), D3D12_HEAP_SERIALIZATION_TIER_0);
@@ -686,7 +671,7 @@ TEST_F(FeatureSupportTest, CrossNodeBasic)
     device->m_CrossNodeSharingTier = D3D12_CROSS_NODE_SHARING_TIER_3; // Duplicated Cap
     device->m_AtomicShaderInstructions = true;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_EQ(features.CrossNodeSharingTier(), D3D12_CROSS_NODE_SHARING_TIER_3);
     EXPECT_TRUE(features.CrossNodeAtomicShaderInstructions());
@@ -699,7 +684,7 @@ TEST_F(FeatureSupportTest, CrossNodeUnavailable)
     device->m_CrossNodeSharingTier = D3D12_CROSS_NODE_SHARING_TIER_3; // Duplicated Cap
     device->m_AtomicShaderInstructions = true;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_EQ(features.CrossNodeSharingTier(), D3D12_CROSS_NODE_SHARING_TIER_3); // It is still correctly initialized by Options1
     EXPECT_FALSE(features.CrossNodeAtomicShaderInstructions());
@@ -713,7 +698,7 @@ TEST_F(FeatureSupportTest, Options5Basic)
     device->m_RenderPassesTier = D3D12_RENDER_PASS_TIER_2;
     device->m_SRVOnlyTiledResourceTier3 = true;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_EQ(features.RaytracingTier(), D3D12_RAYTRACING_TIER_1_1);
     EXPECT_EQ(features.RenderPassesTier(), D3D12_RENDER_PASS_TIER_2);
@@ -728,7 +713,7 @@ TEST_F(FeatureSupportTest, Options5Unavailable)
     device->m_RenderPassesTier = D3D12_RENDER_PASS_TIER_2;
     device->m_SRVOnlyTiledResourceTier3 = true;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_EQ(features.RaytracingTier(), D3D12_RAYTRACING_TIER_NOT_SUPPORTED);
     EXPECT_EQ(features.RenderPassesTier(), D3D12_RENDER_PASS_TIER_0);
@@ -742,11 +727,10 @@ TEST_F(FeatureSupportTest, DisplayableBasic)
     device->m_DisplayableTexture = true;
     device->m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_TRUE(features.DisplayableTexture());
     EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3);
-    EXPECT_EQ(features.DisplayableSharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3);
 }
 
 // Unavailable Test
@@ -756,11 +740,10 @@ TEST_F(FeatureSupportTest, DisplayableUnavailable)
     device->m_DisplayableTexture = true;
     device->m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_FALSE(features.DisplayableTexture());
     EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3); // Still initialized by Options4
-    EXPECT_EQ(features.DisplayableSharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0); // This should have been affected
 }
 
 // 30: D3D12 Options6
@@ -773,7 +756,7 @@ TEST_F(FeatureSupportTest, Options6Basic)
     device->m_ShadingRateImageTileSize = 10;
     device->m_VariableShadingRateTier = D3D12_VARIABLE_SHADING_RATE_TIER_2;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_TRUE(features.AdditionalShadingRatesSupported());
     EXPECT_TRUE(features.BackgroundProcessingSupported());
@@ -792,7 +775,7 @@ TEST_F(FeatureSupportTest, Options6Unavailable)
     device->m_ShadingRateImageTileSize = 10;
     device->m_VariableShadingRateTier = D3D12_VARIABLE_SHADING_RATE_TIER_2;
 
-    CD3DX12FeatureSupport features = CD3DX12FeatureSupport::Create(device);
+    INIT_FEATURES();
 
     EXPECT_FALSE(features.AdditionalShadingRatesSupported());
     EXPECT_FALSE(features.BackgroundProcessingSupported());
@@ -947,5 +930,367 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesMulticore)
 //     EXPECT_EQ(features.ProtectedResourceSessionTypes(0).size(), 0);
 // }
 
+// 36: Options8
+// Basic Test
+TEST_F(FeatureSupportTest, Options8Basic)
+{
+    device->m_UnalignedBlockTexturesSupported = true;
+    INIT_FEATURES();
+    EXPECT_TRUE(features.UnalignedBlockTexturesSupported());
+}
 
-// TODO: Duplicate caps tests
+// Unavailable Test
+TEST_F(FeatureSupportTest, Options8Unavailable)
+{
+    device->m_Options8Available = false;
+    device->m_UnalignedBlockTexturesSupported = true;
+    INIT_FEATURES();
+    EXPECT_FALSE(features.UnalignedBlockTexturesSupported());
+}
+
+// 37: Options9
+// Basic Test
+TEST_F(FeatureSupportTest, Options9Basic)
+{
+    device->m_MeshShaderPipelineStatsSupported = true;
+    device->m_MeshShaderSupportsFullRangeRenderTargetArrayIndex = true;
+    device->m_AtomicInt64OnTypedResourceSupported = true;
+    device->m_AtomicInt64OnGroupSharedSupported = true;
+    device->m_DerivativesInMeshAndAmplificationShadersSupported = true;
+    device->m_WaveMMATier = D3D12_WAVE_MMA_TIER_1_0;
+
+    INIT_FEATURES();
+
+    EXPECT_TRUE(features.MeshShaderPipelineStatsSupported());
+    EXPECT_TRUE(features.MeshShaderSupportsFullRangeRenderTargetArrayIndex());
+    EXPECT_TRUE(features.AtomicInt64OnTypedResourceSupported());
+    EXPECT_TRUE(features.AtomicInt64OnGroupSharedSupported());
+    EXPECT_TRUE(features.DerivativesInMeshAndAmplificationShadersSupported());
+    EXPECT_EQ(features.WaveMMATier(), D3D12_WAVE_MMA_TIER_1_0);
+}
+
+// Unavailable Test
+TEST_F(FeatureSupportTest, Options9Unavailable)
+{
+    device->m_Options9Available = false;
+    device->m_MeshShaderPipelineStatsSupported = true;
+    device->m_MeshShaderSupportsFullRangeRenderTargetArrayIndex = true;
+    device->m_AtomicInt64OnTypedResourceSupported = true;
+    device->m_AtomicInt64OnGroupSharedSupported = true;
+    device->m_DerivativesInMeshAndAmplificationShadersSupported = true;
+    device->m_WaveMMATier = D3D12_WAVE_MMA_TIER_1_0;
+
+    INIT_FEATURES();
+
+    EXPECT_FALSE(features.MeshShaderPipelineStatsSupported());
+    EXPECT_FALSE(features.MeshShaderSupportsFullRangeRenderTargetArrayIndex());
+    EXPECT_FALSE(features.AtomicInt64OnTypedResourceSupported());
+    EXPECT_FALSE(features.AtomicInt64OnGroupSharedSupported());
+    EXPECT_FALSE(features.DerivativesInMeshAndAmplificationShadersSupported());
+    EXPECT_EQ(features.WaveMMATier(), D3D12_WAVE_MMA_TIER_NOT_SUPPORTED);
+}
+
+// 39: Options10
+// Basic Test
+TEST_F(FeatureSupportTest, Options10Basic)
+{
+    device->m_VariableRateShadingSumCombinerSupported = true;
+    device->m_MeshShaderPerPrimitiveShadingRateSupported = true;
+    
+    INIT_FEATURES();
+
+    EXPECT_TRUE(features.VariableRateShadingSumCombinerSupported());
+    EXPECT_TRUE(features.MeshShaderPerPrimitiveShadingRateSupported());
+}
+
+// Unavailable Test
+TEST_F(FeatureSupportTest, Options10Unavailable)
+{
+    device->m_Options10Available = false;
+    device->m_VariableRateShadingSumCombinerSupported = true;
+    device->m_MeshShaderPerPrimitiveShadingRateSupported = true;
+    
+    INIT_FEATURES();
+
+    EXPECT_FALSE(features.VariableRateShadingSumCombinerSupported());
+    EXPECT_FALSE(features.MeshShaderPerPrimitiveShadingRateSupported());
+}
+
+// 40: Options11
+// Basic Test
+TEST_F(FeatureSupportTest, Options11Basic)
+{
+    device->m_AtomicInt64OnDescriptorHeapResourceSupported = true;
+    INIT_FEATURES();
+    EXPECT_TRUE(features.AtomicInt64OnDescriptorHeapResourceSupported());
+}
+
+// Unavailable Test
+TEST_F(FeatureSupportTest, Options11Unavailable)
+{
+    device->m_Options11Available = false;
+    device->m_AtomicInt64OnDescriptorHeapResourceSupported = true;
+    INIT_FEATURES();
+    EXPECT_FALSE(features.AtomicInt64OnDescriptorHeapResourceSupported());
+}
+
+// Duplicate Caps Tests
+// This test ensures that caps that are present in more than one features reports correctly
+// when either of them are unavailable on the runtime
+
+// Cross Node Sharing Tier: D3D12Options, CrossNode
+TEST_F(FeatureSupportTest, DuplicateCrossNodeSharingTier)
+{
+    device->m_CrossNodeSharingTier = D3D12_CROSS_NODE_SHARING_TIER_3;
+    device->m_CrossNodeAvailable = false;
+
+    INIT_FEATURES();
+
+    EXPECT_EQ(features.CrossNodeSharingTier(), D3D12_CROSS_NODE_SHARING_TIER_3);
+}
+
+// Shared Resource Compatibility Tier: D3D12Options4, Displayable
+TEST_F(FeatureSupportTest, DuplicateSharedResourceCompatibilityTier)
+{
+    device->m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3;
+    device->m_DisplayableAvailable = false;
+
+    INIT_FEATURES();
+    EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3);
+}
+
+// Test where both features are unavailable
+TEST_F(FeatureSupportTest, DuplicateSharedResourceCompatibilityTierNegatvie)
+{
+    device->m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3;
+    device->m_DisplayableAvailable = false;
+    device->m_Options4Available = false;
+
+    INIT_FEATURES();
+    EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_0); // Fallback to default value
+}
+
+// MaxGPUVirtualAddressBitsPerResource also has duplicates,
+// but since the two features are always supported, no explicit tests are needed.
+
+// System Test
+// Test if the system works when all features are initialized and queries
+TEST_F(FeatureSupportTest, SystemTest)
+{
+    device->SetNodeCount(2);
+    device->m_DoublePrecisionFloatShaderOps = true;
+    device->m_OutputMergerLogicOp = true;
+    device->m_ShaderMinPrecisionSupport10Bit = D3D12_SHADER_MIN_PRECISION_SUPPORT_10_BIT;
+    device->m_ShaderMinPrecisionSupport16Bit = D3D12_SHADER_MIN_PRECISION_SUPPORT_16_BIT;
+    device->m_TiledResourcesTier = D3D12_TILED_RESOURCES_TIER_3;
+    device->m_ResourceBindingTier = D3D12_RESOURCE_BINDING_TIER_3;
+    device->m_PSSpecifiedStencilRefSupported = true;
+    device->m_ConservativeRasterizationTier = D3D12_CONSERVATIVE_RASTERIZATION_TIER_2;
+    device->m_MaxGPUVirtualAddressBitsPerResource = 10;
+    device->m_ResourceHeapTier = D3D12_RESOURCE_HEAP_TIER_2;
+    device->m_TypedUAVLoadAdditionalFormats = true;
+    device->m_ROVsSupported = true;
+    device->m_StandardSwizzle64KBSupported = true;
+    device->m_CrossNodeSharingTier = D3D12_CROSS_NODE_SHARING_TIER_3;
+    device->m_CrossAdapterRowMajorTextureSupported = true;
+    device->m_VPAndRTArrayIndexFromAnyShaderFeedingRasterizerSupportedWithoutGSEmulation = true;
+
+    device->m_Architecture1Available = true;
+    device->m_TileBasedRenderer = {false, true};
+    device->m_UMA = {true, false};
+    device->m_CacheCoherentUMA = {false, true};
+    device->m_IsolatedMMU = {true, true};
+
+    device->m_FeatureLevel = D3D_FEATURE_LEVEL_12_2;
+
+    device->m_MaxGPUVirtualAddressBitsPerProcess = 16;
+
+    device->m_WaveOpsSupported = true;
+    device->m_WaveLaneCountMin = 2;
+    device->m_WaveLaneCountMax = 4;
+    device->m_TotalLaneCount = 8;
+    device->m_ExpandedComputeResourceStates = true;
+    device->m_Int64ShaderOpsSupported = true;
+
+    device->m_ProtectedResourceSessionSupport =
+    {
+        D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE,
+        D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_SUPPORTED,
+    };
+
+    device->m_RootSignatureHighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+
+    device->m_DepthBoundsTestSupport = true;
+    device->m_ProgrammableSamplePositionsTier = D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER_2;
+
+    D3D12_SHADER_CACHE_SUPPORT_FLAGS outFlags = D3D12_SHADER_CACHE_SUPPORT_SINGLE_PSO 
+        | D3D12_SHADER_CACHE_SUPPORT_LIBRARY
+        | D3D12_SHADER_CACHE_SUPPORT_AUTOMATIC_INPROC_CACHE
+        | D3D12_SHADER_CACHE_SUPPORT_DRIVER_MANAGED_CACHE
+        | D3D12_SHADER_CACHE_SUPPORT_SHADER_CONTROL_CLEAR
+        | D3D12_SHADER_CACHE_SUPPORT_SHADER_SESSION_DELETE;
+    device->m_ShaderCacheSupportFlags = outFlags;
+
+    device->m_GlobalRealtimeCommandQueueSupport = true;
+
+    device->m_CopyQueueTimestampQueriesSupported = true;
+    device->m_CastingFullyTypedFormatsSupported = true;
+    device->m_GetCachedWriteBufferImmediateSupportFlags = D3D12_COMMAND_LIST_SUPPORT_FLAG_DIRECT | D3D12_COMMAND_LIST_SUPPORT_FLAG_COMPUTE;
+    device->m_ViewInstancingTier = D3D12_VIEW_INSTANCING_TIER_3;
+    device->m_BarycentricsSupported = true;
+
+    device->m_ExistingHeapCaps = true;
+
+    device->m_MSAA64KBAlignedTextureSupported = true;
+    device->m_SharedResourceCompatibilityTier = D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3; // Duplicate member
+    device->m_Native16BitShaderOpsSupported = true;
+
+    device->m_HeapSerializationTier = 
+    {
+        D3D12_HEAP_SERIALIZATION_TIER_10,
+        D3D12_HEAP_SERIALIZATION_TIER_10,
+    };
+
+    device->m_AtomicShaderInstructions = true;
+
+    device->m_RaytracingTier = D3D12_RAYTRACING_TIER_1_1;
+    device->m_RenderPassesTier = D3D12_RENDER_PASS_TIER_2;
+    device->m_SRVOnlyTiledResourceTier3 = true;
+
+    device->m_DisplayableTexture = true;
+
+    device->m_AdditionalShadingRatesSupported = true;
+    device->m_BackgroundProcessingSupported = true;
+    device->m_PerPrimitiveShadingRateSupportedWithViewportIndexing = true;
+    device->m_ShadingRateImageTileSize = 10;
+    device->m_VariableShadingRateTier = D3D12_VARIABLE_SHADING_RATE_TIER_2;
+
+    device->m_MeshShaderTier = D3D12_MESH_SHADER_TIER_1;
+    device->m_SamplerFeedbackTier = D3D12_SAMPLER_FEEDBACK_TIER_1_0;
+
+    device->m_ProtectedResourceSessionTypeCount = {2, 1};
+    device->m_ProtectedResourceSessionTypes[0].resize(3);
+    device->m_ProtectedResourceSessionTypes[1].resize(14);
+
+    device->m_ProtectedResourceSessionTypes[0] = {{1, 1, 2, {3, 5, 8, 13}}, {1, 4, 9, {16, 25, 36, 49}}}; // Some random GUID test data
+    device->m_ProtectedResourceSessionTypes[1] = {{5, 7, 9, {11, 13, 15, 17}}};
+
+    device->m_UnalignedBlockTexturesSupported = true;
+
+    device->m_MeshShaderPipelineStatsSupported = true;
+    device->m_MeshShaderSupportsFullRangeRenderTargetArrayIndex = true;
+    device->m_AtomicInt64OnTypedResourceSupported = true;
+    device->m_AtomicInt64OnGroupSharedSupported = true;
+    device->m_DerivativesInMeshAndAmplificationShadersSupported = true;
+    device->m_WaveMMATier = D3D12_WAVE_MMA_TIER_1_0;
+
+    device->m_VariableRateShadingSumCombinerSupported = true;
+    device->m_MeshShaderPerPrimitiveShadingRateSupported = true;
+
+    device->m_AtomicInt64OnDescriptorHeapResourceSupported = true;
+
+    INIT_FEATURES();
+
+    EXPECT_TRUE(features.DoublePrecisionFloatShaderOps());
+    EXPECT_TRUE(features.OutputMergerLogicOp());
+    EXPECT_EQ(features.MinPrecisionSupport(), D3D12_SHADER_MIN_PRECISION_SUPPORT_10_BIT | D3D12_SHADER_MIN_PRECISION_SUPPORT_16_BIT);
+    EXPECT_EQ(features.TiledResourcesTier(), D3D12_TILED_RESOURCES_TIER_3);
+    EXPECT_EQ(features.ResourceBindingTier(), D3D12_RESOURCE_BINDING_TIER_3);
+    EXPECT_TRUE(features.PSSpecifiedStencilRefSupported());
+    EXPECT_TRUE(features.TypedUAVLoadAdditionalFormats());
+    EXPECT_TRUE(features.ROVsSupported());
+    EXPECT_EQ(features.ConservativeRasterizationTier(), D3D12_CONSERVATIVE_RASTERIZATION_TIER_2);
+    EXPECT_EQ(features.MaxGPUVirtualAddressBitsPerResource(), 10);
+    EXPECT_TRUE(features.StandardSwizzle64KBSupported());
+    EXPECT_EQ(features.CrossNodeSharingTier(), D3D12_CROSS_NODE_SHARING_TIER_3);
+    EXPECT_TRUE(features.CrossAdapterRowMajorTextureSupported());
+    EXPECT_TRUE(features.VPAndRTArrayIndexFromAnyShaderFeedingRasterizerSupportedWithoutGSEmulation());
+    EXPECT_EQ(features.ResourceHeapTier(), D3D12_RESOURCE_HEAP_TIER_2);
+
+    EXPECT_FALSE(features.TileBasedRenderer(0));
+    EXPECT_TRUE(features.TileBasedRenderer(1));
+    EXPECT_TRUE(features.UMA(0));
+    EXPECT_FALSE(features.UMA(1));
+    EXPECT_FALSE(features.CacheCoherentUMA(0));
+    EXPECT_TRUE(features.CacheCoherentUMA(1));
+    EXPECT_TRUE(features.IsolatedMMU(0));
+    EXPECT_TRUE(features.IsolatedMMU(1));
+
+    EXPECT_EQ(features.HighestFeatureLevel(), D3D_FEATURE_LEVEL_12_2);
+    
+    EXPECT_EQ(features.MaxGPUVirtualAddressBitsPerProcess(), 16);
+    
+    EXPECT_TRUE(features.WaveOps());
+    EXPECT_EQ(features.WaveLaneCountMin(), 2);
+    EXPECT_EQ(features.WaveLaneCountMax(), 4);
+    EXPECT_EQ(features.TotalLaneCount(), 8);
+    EXPECT_TRUE(features.ExpandedComputeResourceStates());
+    EXPECT_TRUE(features.Int64ShaderOps());
+
+    EXPECT_EQ(features.ProtectedResourceSessionSupport(0), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE);
+    EXPECT_EQ(features.ProtectedResourceSessionSupport(1), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_SUPPORTED);
+
+    EXPECT_EQ(features.HighestRootSignatureVersion(), D3D_ROOT_SIGNATURE_VERSION_1_1);
+
+    EXPECT_TRUE(features.DepthBoundsTestSupported());
+    EXPECT_EQ(features.ProgrammableSamplePositionsTier(), D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER_2);
+
+    EXPECT_EQ(features.ShaderCacheSupportFlags(), outFlags);
+
+    EXPECT_TRUE(features.CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL));
+    EXPECT_TRUE(features.CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_HIGH));
+    EXPECT_TRUE(features.CommandQueuePrioritySupported(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME));
+
+    EXPECT_TRUE(features.CopyQueueTimestampQueriesSupported());
+    EXPECT_TRUE(features.CastingFullyTypedFormatSupported());
+    EXPECT_EQ(features.WriteBufferImmediateSupportFlags(), D3D12_COMMAND_LIST_SUPPORT_FLAG_DIRECT | D3D12_COMMAND_LIST_SUPPORT_FLAG_COMPUTE);
+    EXPECT_EQ(features.ViewInstancingTier(), D3D12_VIEW_INSTANCING_TIER_3);
+    EXPECT_TRUE(features.BarycentricsSupported());
+
+    EXPECT_TRUE(features.ExistingHeapsSupported());
+
+    EXPECT_TRUE(features.MSAA64KBAlignedTextureSupported());
+    EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3);
+    EXPECT_TRUE(features.Native16BitShaderOpsSupported());
+
+    EXPECT_EQ(features.HeapSerializationTier(), D3D12_HEAP_SERIALIZATION_TIER_10);
+    EXPECT_EQ(features.HeapSerializationTier(1), D3D12_HEAP_SERIALIZATION_TIER_10);
+
+    EXPECT_EQ(features.CrossNodeSharingTier(), D3D12_CROSS_NODE_SHARING_TIER_3);
+    EXPECT_TRUE(features.CrossNodeAtomicShaderInstructions());
+
+    EXPECT_EQ(features.RaytracingTier(), D3D12_RAYTRACING_TIER_1_1);
+    EXPECT_EQ(features.RenderPassesTier(), D3D12_RENDER_PASS_TIER_2);
+    EXPECT_TRUE(features.SRVOnlyTiledResourceTier3());
+
+    EXPECT_TRUE(features.DisplayableTexture());
+    EXPECT_EQ(features.SharedResourceCompatibilityTier(), D3D12_SHARED_RESOURCE_COMPATIBILITY_TIER_3);
+
+    EXPECT_TRUE(features.AdditionalShadingRatesSupported());
+    EXPECT_TRUE(features.BackgroundProcessingSupported());
+    EXPECT_TRUE(features.PerPrimitiveShadingRateSupportedWithViewportIndexing());
+    EXPECT_EQ(features.ShadingRateImageTileSize(), 10);
+    EXPECT_EQ(features.VariableShadingRateTier(), D3D12_VARIABLE_SHADING_RATE_TIER_2);
+
+    EXPECT_EQ(features.MeshShaderTier(), D3D12_MESH_SHADER_TIER_1);
+    EXPECT_EQ(features.SamplerFeedbackTier(), D3D12_SAMPLER_FEEDBACK_TIER_1_0);
+
+    EXPECT_EQ(features.ProtectedResourceSessionTypeCount(0), 2);
+    EXPECT_EQ(features.ProtectedResourceSessionTypeCount(1), 1);
+    EXPECT_EQ(features.ProtectedResourceSessionTypes(0), device->m_ProtectedResourceSessionTypes[0]);
+    EXPECT_EQ(features.ProtectedResourceSessionTypes(1), device->m_ProtectedResourceSessionTypes[1]);
+
+    EXPECT_TRUE(features.UnalignedBlockTexturesSupported());
+
+    EXPECT_TRUE(features.MeshShaderPipelineStatsSupported());
+    EXPECT_TRUE(features.MeshShaderSupportsFullRangeRenderTargetArrayIndex());
+    EXPECT_TRUE(features.AtomicInt64OnTypedResourceSupported());
+    EXPECT_TRUE(features.AtomicInt64OnGroupSharedSupported());
+    EXPECT_TRUE(features.DerivativesInMeshAndAmplificationShadersSupported());
+    EXPECT_EQ(features.WaveMMATier(), D3D12_WAVE_MMA_TIER_1_0);
+
+    EXPECT_TRUE(features.VariableRateShadingSumCombinerSupported());
+    EXPECT_TRUE(features.MeshShaderPerPrimitiveShadingRateSupported());
+
+    EXPECT_TRUE(features.AtomicInt64OnDescriptorHeapResourceSupported());
+}

@@ -993,91 +993,70 @@ public: // IUnknown
                 }
 
             } return S_OK;
-        /*
+        
         case D3D12_FEATURE_D3D12_OPTIONS8:
         {
+            if (!m_Options8Available)
+            {
+                return E_INVALIDARG;
+            }
             D3D12_FEATURE_DATA_D3D12_OPTIONS8 *pD3D12Options8 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS8*>(pFeatureSupportData);
             if (FeatureSupportDataSize != sizeof(*pD3D12Options8))
             {
                 return E_INVALIDARG;
             }
 
-            *pD3D12Options8 = m_ValidationInfo.m_Options8;
+            pD3D12Options8->UnalignedBlockTexturesSupported = m_UnalignedBlockTexturesSupported;
         } return S_OK;
         case D3D12_FEATURE_D3D12_OPTIONS9:
         {
+            if (!m_Options9Available)
+            {
+                return E_INVALIDARG;
+            }
             D3D12_FEATURE_DATA_D3D12_OPTIONS9 *pD3D12Options9 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS9*>(pFeatureSupportData);
             if (FeatureSupportDataSize != sizeof(*pD3D12Options9))
             {
                 return E_INVALIDARG;
             }
 
-            *pD3D12Options9 = m_ValidationInfo.m_Options9;
+            pD3D12Options9->AtomicInt64OnGroupSharedSupported = m_AtomicInt64OnGroupSharedSupported;
+            pD3D12Options9->AtomicInt64OnTypedResourceSupported = m_AtomicInt64OnTypedResourceSupported;
+            pD3D12Options9->DerivativesInMeshAndAmplificationShadersSupported = m_DerivativesInMeshAndAmplificationShadersSupported;
+            pD3D12Options9->MeshShaderPipelineStatsSupported = m_MeshShaderPipelineStatsSupported;
+            pD3D12Options9->MeshShaderSupportsFullRangeRenderTargetArrayIndex = m_MeshShaderSupportsFullRangeRenderTargetArrayIndex;
+            pD3D12Options9->WaveMMATier = m_WaveMMATier;
         } return S_OK;
         case D3D12_FEATURE_D3D12_OPTIONS10:
         {
+            if (!m_Options10Available)
+            {
+                return E_INVALIDARG;
+            }
             D3D12_FEATURE_DATA_D3D12_OPTIONS10* pD3D12Options10 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS10*>(pFeatureSupportData);
             if (FeatureSupportDataSize != sizeof(*pD3D12Options10))
             {
                 return E_INVALIDARG;
             }
 
-            *pD3D12Options10 = m_ValidationInfo.m_Options10;
+            pD3D12Options10->MeshShaderPerPrimitiveShadingRateSupported = m_MeshShaderPerPrimitiveShadingRateSupported;
+            pD3D12Options10->VariableRateShadingSumCombinerSupported = m_VariableRateShadingSumCombinerSupported;
         } return S_OK;
-        case D3D12_FEATURE_WAVE_MMA:
-        {
-            D3D12_FEATURE_DATA_WAVE_MMA *pWaveMMA = static_cast<D3D12_FEATURE_DATA_WAVE_MMA*>(pFeatureSupportData);
-            bool bError = false;
-            switch(pWaveMMA->InputDataType)
-            {
-            case D3D12_WAVE_MMA_INPUT_DATATYPE_BYTE:
-            case D3D12_WAVE_MMA_INPUT_DATATYPE_FLOAT16:
-            case D3D12_WAVE_MMA_INPUT_DATATYPE_FLOAT:
-                break;
-            default:
-                bError = true;
-            }
-            switch(pWaveMMA->M)
-            {
-            case D3D12_WAVE_MMA_DIMENSION_16:
-            case D3D12_WAVE_MMA_DIMENSION_64:
-                break;
-            default:
-                bError = true;
-            }
-            switch(pWaveMMA->N)
-            {
-            case D3D12_WAVE_MMA_DIMENSION_16:
-            case D3D12_WAVE_MMA_DIMENSION_64:
-                break;
-            default:
-                bError = true;
-            }
-            if(bError)
-            {
-                pWaveMMA->Supported = FALSE;
-                pWaveMMA->K = 0;
-                pWaveMMA->AccumDataTypes = D3D12_WAVE_MMA_ACCUM_DATATYPE_NONE;
-                pWaveMMA->RequiredWaveLaneCountMin = 0;
-                pWaveMMA->RequiredWaveLaneCountMax = 0;
-                return E_INVALIDARG;
-            }
-            // DDI is surfaced directly through API
-            D3D12DDI_WAVE_MMA_DATA_LATEST *pWaveMMADDI = reinterpret_cast<D3D12DDI_WAVE_MMA_DATA_LATEST*>(pWaveMMA);
-            // Need to make an immediate call to get the caps since this is an in/out query.
-            return VersionedGetWaveMMAOptions(pWaveMMADDI); 
-        }
         case D3D12_FEATURE_D3D12_OPTIONS11:
         {
+            if (!m_Options11Available)
+            {
+                return E_INVALIDARG;
+            }
             D3D12_FEATURE_DATA_D3D12_OPTIONS11* pD3D12Options11 = static_cast<D3D12_FEATURE_DATA_D3D12_OPTIONS11*>(pFeatureSupportData);
             if (FeatureSupportDataSize != sizeof(*pD3D12Options11))
             {
                 return E_INVALIDARG;
             }
 
-            *pD3D12Options11 = m_ValidationInfo.m_Options11;
+            pD3D12Options11->AtomicInt64OnDescriptorHeapResourceSupported = m_AtomicInt64OnDescriptorHeapResourceSupported;
         } return S_OK;
-        */
+        
 
         default:
             return E_INVALIDARG;
@@ -1242,6 +1221,27 @@ public: // For simplicity, allow tests to set the internal state values for this
     bool m_ProtectedResourceSessionTypesAvailable = true;
     std::vector<std::vector<GUID>> m_ProtectedResourceSessionTypes;
 
+    // 36: Options8
+    bool m_Options8Available = true;
+    bool m_UnalignedBlockTexturesSupported = false;
+
+    // 37: Options9
+    bool m_Options9Available = true;
+    bool m_MeshShaderPipelineStatsSupported = false;
+    bool m_MeshShaderSupportsFullRangeRenderTargetArrayIndex = false;
+    bool m_AtomicInt64OnTypedResourceSupported = false;
+    bool m_AtomicInt64OnGroupSharedSupported = false;
+    bool m_DerivativesInMeshAndAmplificationShadersSupported = false;
+    D3D12_WAVE_MMA_TIER m_WaveMMATier = D3D12_WAVE_MMA_TIER_NOT_SUPPORTED;
+
+    // 39: Options10
+    bool m_Options10Available = true;
+    bool m_VariableRateShadingSumCombinerSupported = false;
+    bool m_MeshShaderPerPrimitiveShadingRateSupported = false;
+
+    // 40: Options11
+    bool m_Options11Available = true;
+    bool m_AtomicInt64OnDescriptorHeapResourceSupported = false;
 };
 
 #endif

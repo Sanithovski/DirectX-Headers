@@ -134,7 +134,7 @@ TEST_F(FeatureSupportTest, FeatureLevelBasic)
     device->m_FeatureLevel = D3D_FEATURE_LEVEL_12_2;
     
     INIT_FEATURES();
-    EXPECT_EQ(features.HighestFeatureLevel(), D3D_FEATURE_LEVEL_12_2);
+    EXPECT_EQ(features.MaxSupportedFeatureLevel(), D3D_FEATURE_LEVEL_12_2);
 }
 
 // Test through all supported feature levels
@@ -159,7 +159,7 @@ TEST_F(FeatureSupportTest, FeatureLevelAll)
     {
         device->m_FeatureLevel = allLevels[i];
         INIT_FEATURES();
-        EXPECT_EQ(features.HighestFeatureLevel(), allLevels[i]);
+        EXPECT_EQ(features.MaxSupportedFeatureLevel(), allLevels[i]);
     }
 }
 
@@ -168,7 +168,7 @@ TEST_F(FeatureSupportTest, FeatureLevelHigher)
 {
     device->m_FeatureLevel = (D3D_FEATURE_LEVEL)(D3D_FEATURE_LEVEL_12_2 + 1);
     INIT_FEATURES();
-    EXPECT_EQ(features.HighestFeatureLevel(), D3D_FEATURE_LEVEL_12_2);
+    EXPECT_EQ(features.MaxSupportedFeatureLevel(), D3D_FEATURE_LEVEL_12_2);
 }
 
 // 3: Format Support
@@ -1234,7 +1234,7 @@ TEST_F(FeatureSupportTest, SystemTest)
     EXPECT_TRUE(features.IsolatedMMU(0));
     EXPECT_TRUE(features.IsolatedMMU(1));
 
-    EXPECT_EQ(features.HighestFeatureLevel(), D3D_FEATURE_LEVEL_12_2);
+    EXPECT_EQ(features.MaxSupportedFeatureLevel(), D3D_FEATURE_LEVEL_12_2);
     
     EXPECT_EQ(features.MaxGPUVirtualAddressBitsPerProcess(), 16);
     

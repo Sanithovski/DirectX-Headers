@@ -9,11 +9,14 @@
 
 #include "MockDevice.hpp"
 
+// Initiliaze the CD3DX12FeatureSupport instance
+// Can be modified to use new initialization methods if any comes up in the future
 #define INIT_FEATURES() \
     CD3DX12FeatureSupport features; \
     HRESULT InitResult = features.Init(device); \
     EXPECT_EQ(features.GetStatus(), S_OK);
 
+// Testing class setup
 class FeatureSupportTest : public ::testing::Test {
 protected: 
     void SetUp() override {
@@ -27,6 +30,7 @@ protected:
     MockDevice* device = nullptr;
 };
 
+// Test if the class can be initialized correctly
 TEST_F(FeatureSupportTest, Initialization) {
     CD3DX12FeatureSupport features;
     EXPECT_EQ(features.Init(device), S_OK);
@@ -99,7 +103,7 @@ TEST_F(FeatureSupportTest, Architecture1Unavailable)
 }
 
 // Test on devices with more than one graphics node
-TEST_F(FeatureSupportTest, ArchitectureMulticore)
+TEST_F(FeatureSupportTest, ArchitectureMultinode)
 {
     device->SetNodeCount(3);
     device->m_Architecture1Available = true;
@@ -173,6 +177,9 @@ TEST_F(FeatureSupportTest, FeatureLevelHigher)
 
 // 3: Format Support
 // Forward call to the old API. Basic correctness check
+// Note: The input and return value of this test is arbitrary and does not reflect the results of running on real devices
+// The test only checks if the input and output are correctly passed to the inner API and the user.
+// Same applies to Multisample Quality Levels (4) and Format Info (5)
 TEST_F(FeatureSupportTest, FormatSupportPositive)
 {
     device->m_FormatSupport1 = D3D12_FORMAT_SUPPORT1_BUFFER | D3D12_FORMAT_SUPPORT1_TEXTURE3D | D3D12_FORMAT_SUPPORT1_SHADER_SAMPLE_COMPARISON | D3D12_FORMAT_SUPPORT1_DECODER_OUTPUT;
@@ -250,7 +257,7 @@ TEST_F(FeatureSupportTest, MultisampleQualityLevelsNegative)
 }
 
 // 5: Format Info
-// Forward call to old API. Basic sanity check
+// Forward call to old API. Basic check
 TEST_F(FeatureSupportTest, FormatInfoPositive)
 {
     device->m_PlaneCount = 4;
@@ -294,6 +301,12 @@ TEST_F(FeatureSupportTest, GPUVASupport)
     EXPECT_EQ(features.MaxGPUVirtualAddressBitsPerProcess(), 16);
     EXPECT_EQ(features.MaxGPUVirtualAddressBitsPerResource(), 12);
 }
+
+/*
+    Starting from Options1, all features should have an "unavailable test"
+    to ensure the new API returns the desired default values
+    when a device does not support that feature
+*/
 
 // 8: Options1
 // Basic tests
@@ -360,8 +373,8 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportNegative)
     EXPECT_EQ(features.ProtectedResourceSessionSupport(), D3D12_PROTECTED_RESOURCE_SESSION_SUPPORT_FLAG_NONE);
 }
 
-// Multicore test
-TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportMulticore)
+// Multinode test
+TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportMultinode)
 {
     device->SetNodeCount(4);
     device->m_ProtectedResourceSessionSupport =
@@ -392,8 +405,8 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportNotAvailable)
 }
 
 
-// Multicore Unavailable test
-TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportNotAvailableMulticore)
+// Multinode Unavailable test
+TEST_F(FeatureSupportTest, ProtectedResourceSessionSupportNotAvailableMultinode)
 {
     device->m_ProtectedResourceSessionAvailable = false;
     device->SetNodeCount(4);
@@ -629,8 +642,8 @@ TEST_F(FeatureSupportTest, SerializationBasic)
     EXPECT_EQ(features.HeapSerializationTier(), D3D12_HEAP_SERIALIZATION_TIER_10);
 }
 
-// Multicore Test
-TEST_F(FeatureSupportTest, SerializationMulticore)
+// Multinode Test
+TEST_F(FeatureSupportTest, SerializationMultinode)
 {
     device->SetNodeCount(3);
     device->m_HeapSerializationTier = 
@@ -859,8 +872,8 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionTypeCountBasic)
     EXPECT_EQ(features.ProtectedResourceSessionTypeCount(0), 5);
 }
 
-// Multicore Test
-TEST_F(FeatureSupportTest, ProtectedResourceSessionTypeCountMulticore)
+// Multinode Test
+TEST_F(FeatureSupportTest, ProtectedResourceSessionTypeCountMultinode)
 {
     device->SetNodeCount(3);
     device->m_ProtectedResourceSessionTypeCount = {3, 14, 21};
@@ -905,8 +918,8 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesBasic)
     EXPECT_EQ(features.ProtectedResourceSessionTypes(), device->m_ProtectedResourceSessionTypes[0]);
 }
 
-// Multicore Test
-TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesMulticore)
+// Multinode Test
+TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesMultinode)
 {
     device->SetNodeCount(2);
     device->m_ProtectedResourceSessionTypeCount = {2, 1};

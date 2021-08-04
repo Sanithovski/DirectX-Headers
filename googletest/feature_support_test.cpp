@@ -941,10 +941,8 @@ TEST_F(FeatureSupportTest, ProtectedResourceSessionTypesUnavailable)
 
     INIT_FEATURES();
 
-    // TODO: Decide on expected behavior
-    EXPECT_EQ(features.ProtectedResourceSessionTypes(0).size(), 2);
-    EXPECT_EQ(features.ProtectedResourceSessionTypes()[0], GUID());
-    EXPECT_EQ(features.ProtectedResourceSessionTypes()[1], GUID());
+    // If the check fails, the types vector should remain empty
+    EXPECT_EQ(features.ProtectedResourceSessionTypes(0).size(), 0);
 }
 
 // Test where ProtectedResourceSessiontTypeCount is unavailable

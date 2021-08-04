@@ -4851,7 +4851,14 @@ HRESULT CD3DX12FeatureSupport::QueryProtectedResourceSessionTypes(UINT NodeIndex
     CurrentPRSTypes.TypeVec.resize(CurrentPRSTypes.Count);
     CurrentPRSTypes.pTypes = CurrentPRSTypes.TypeVec.data();
 
-    return m_pDevice->CheckFeatureSupport(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPES, &m_dProtectedResourceSessionTypes[NodeIndex], sizeof(D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_TYPES));
+    HRESULT result = m_pDevice->CheckFeatureSupport(D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPES, &m_dProtectedResourceSessionTypes[NodeIndex], sizeof(D3D12_FEATURE_DATA_PROTECTED_RESOURCE_SESSION_TYPES));
+    if (FAILED(result))
+    {
+        // Resize TypeVec to empty
+        CurrentPRSTypes.TypeVec.clear();
+    }
+
+    return result;
 }
 
 #undef FEATURE_SUPPORT_GET
